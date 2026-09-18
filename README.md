@@ -54,29 +54,25 @@ output folder for each run; existing reports are never overwritten.
 Reports show the source (`synthetic` or `live`), units and frame. CSV coordinates
 are in millimeters; JSON also records frame identity. No report is published
 after a failed call, missing output, or a detected context change.
+See the shared [report contract](docs/report-contract.md) for fields and rules.
 
 ## Release pairing
 
 | Implementation | Package pin | Server pairing |
 | --- | --- | --- |
 | Direct gRPC | Hash-verified protocol 0.6.1 | Server 0.6.1, SA 2026.1.0529.7 |
-| .NET | `Briosa.2026.1.0529.7` 0.1.0 | Published client pins Server 0.6.0 exactly |
-| TypeScript | `@spatialanalyzer/briosa-2026.1.0529.7` 0.1.0 via `briosa` alias | Published client pins Server 0.6.0 exactly |
-| Python | `briosa-2026-1-0529-7` 0.1.0 | Published client pins Server 0.6.0 exactly |
+| .NET | `Briosa.2026.1.0529.7` 0.1.1 | Server 0.6.1, SA 2026.1.0529.7 |
+| TypeScript | `@spatialanalyzer/briosa-2026.1.0529.7` 0.1.1 via `briosa` alias | Server 0.6.1, SA 2026.1.0529.7 |
+| Python | `briosa-2026-1-0529-7` 0.1.1 | Server 0.6.1, SA 2026.1.0529.7 |
 
-**Live client runs with the current Server 0.6.1 are blocked until client patch
-packages are published.** The 0.1.0 clients validate both server version and
-source revision, so the unchanged protobuf schema does not make them accept
-0.6.1. Do not bypass those checks or downgrade the security-patched server to
-run this demo. Portable tests exercise each client's documented release identity
-using a synthetic server; that is not evidence of 0.6.1 client compatibility.
-The required client patch releases are tracked in
-[briosa#208](https://github.com/spatialanalyzer/briosa/issues/208).
+All implementations use Server **0.6.1**. Client **0.1.1** validates the exact
+server version, source revision, and SA target. Install the matching server
+distribution; an unchanged protobuf schema does not make other builds compatible.
 
 References: [Server 0.6.1](https://github.com/spatialanalyzer/briosa/releases/tag/v0.6.1),
-[.NET 0.1.0](https://github.com/spatialanalyzer/briosa-dotnet/releases/tag/v0.1.0),
-[JS/TS 0.1.0](https://github.com/spatialanalyzer/briosa-js/releases/tag/v0.1.0),
-[Python 0.1.0](https://github.com/spatialanalyzer/briosa-py/releases/tag/v0.1.0).
+[.NET 0.1.1](https://github.com/spatialanalyzer/briosa-dotnet/releases/tag/v0.1.1),
+[JS/TS 0.1.1](https://github.com/spatialanalyzer/briosa-js/releases/tag/v0.1.1),
+[Python 0.1.1](https://github.com/spatialanalyzer/briosa-py/releases/tag/v0.1.1).
 
 ## Live SA workflow
 
@@ -100,14 +96,14 @@ generation; the externally started server and SA remain open. If SDK startup
 times out before returning its generation, inspect the server before trying
 again: the example cannot safely infer ownership from a missing response.
 
-For language-client variants, once the release-pairing blocker is resolved,
-install the matching patched client and server, set `BRIOSA_SERVER_PATH` if
-needed, and append `--live` to the same console commands. Python additionally
-requires its isolated environment:
+For language-client variants, install client 0.1.1 and the matching Server
+0.6.1 distribution, set `BRIOSA_SERVER_PATH` if needed, and append `--live` to
+the same console commands. Python additionally requires its isolated environment:
 
 ```powershell
 python -m venv point-inspection/python/.venv
 ./point-inspection/python/.venv/Scripts/python -m pip install -r point-inspection/python/requirements.txt
+./point-inspection/python/.venv/Scripts/python point-inspection/python/inspection.py --live --output artifacts/python-live
 ```
 
 Each client owns its local server and SDK, attaches to the prepared SA job,

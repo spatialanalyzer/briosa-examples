@@ -30,10 +30,12 @@ The local environment used Windows, .NET SDK 10.0.401, Node.js 24.21.0 and
 Python 3.12. Packages were restored from NuGet, npm and PyPI. Both C# example
 projects built with zero warnings and errors; TypeScript compiled in strict mode.
 
-The test double advertises Server 0.6.1 for raw gRPC and the clients' pinned
-Server 0.6.0 identity for client 0.1.0. This deliberately tests the published
-contracts without bypassing compatibility checks. It **does not establish that
-client 0.1.0 works with Server 0.6.1**. That release-pairing blocker remains.
+The final run uses published client **0.1.1** packages and the hash-verified
+Server **0.6.1** protocol. The test double advertises the same Server 0.6.1
+version/source identity for all four implementations; compatibility checks are
+not bypassed. Separate clean consumers verified normal NuGet, npm and PyPI
+installation of client 0.1.1 for both SA targets. These portable checks do not
+establish licensed runtime validation.
 
 No SpatialAnalyzer application, SDK, COM connection, measurement hardware or
 license was used. The licensed acceptance procedure remains unexecuted.

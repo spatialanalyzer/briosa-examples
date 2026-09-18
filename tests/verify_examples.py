@@ -73,8 +73,7 @@ def main():
             log = run / f"{name}-{case}.calls"
             env = os.environ.copy()
             env.update(BRIOSA_SERVER_PATH=str(server), BRIOSA_EXAMPLE_TEST_FIXTURE=str(FIXTURE),
-                       BRIOSA_EXAMPLE_TEST_LOG=str(log), BRIOSA_EXAMPLE_TEST_CASE=case,
-                       BRIOSA_EXAMPLE_TEST_VERSION="0.6.1" if name == "grpc" else "0.6.0")
+                       BRIOSA_EXAMPLE_TEST_LOG=str(log), BRIOSA_EXAMPLE_TEST_CASE=case)
             cmd = command + ["--output", str(output)]
             process = None
             server_log = None

@@ -27,7 +27,7 @@ This example currently has no licensed-SA validation record. Before an agent
 controls SA, obtain explicit permission for the current task under the
 [Briosa repository guide](https://github.com/spatialanalyzer/briosa/blob/main/AGENTS.md).
 
-After a compatible current server/client pairing is available:
+Use the documented Server 0.6.1 / client 0.1.1 pairing:
 
 1. Record the exact installed SA, SDK, server, protocol and client versions.
 2. Prepare the [synthetic job](../point-inspection/fixture/README.md).
