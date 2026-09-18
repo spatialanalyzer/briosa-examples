@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../protocol/Protocol.csproj" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.80.0" />
+    <Compile Include="../csharp/Inspection.cs" Link="Inspection.cs" />
+  </ItemGroup>
+</Project>
