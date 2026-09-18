@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.31.1" />
+    <PackageReference Include="Grpc.Core.Api" Version="2.80.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.80.0" PrivateAssets="All" />
+    <Protobuf Include="../artifacts/protocol/proto/briosa/analysis_operations.proto;../artifacts/protocol/proto/briosa/utility_operations.proto;../artifacts/protocol/proto/briosa/discovery.proto;../artifacts/protocol/proto/briosa/lifecycle.proto;../artifacts/protocol/proto/briosa/spatial_analyzer_values.proto;../artifacts/protocol/proto/briosa/operation_outcomes.proto;../artifacts/protocol/proto/briosa/version_coordinates.proto"
+      ProtoRoot="../artifacts/protocol/proto" GrpcServices="Both" />
+  </ItemGroup>
+  <Target Name="RequireProtocol" BeforeTargets="PrepareForBuild" Condition="!Exists('../artifacts/protocol/proto/briosa/lifecycle.proto')">
+    <Error Text="Run eng/Import-Protocol.ps1 before building." />
+  </Target>
+</Project>

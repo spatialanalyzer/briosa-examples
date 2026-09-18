@@ -1,0 +1,28 @@
+name: Portable examples
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and test without SpatialAnalyzer
+        shell: pwsh
+        run: ./eng/Test.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-test-evidence
+          path: artifacts/test-*/
+          retention-days: 14
