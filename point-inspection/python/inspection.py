@@ -150,17 +150,35 @@ async def main():
     parser.add_argument("--live", action="store_true", help="Attach to a prepared running SA job")
     parser.add_argument("--fixture", type=Path, default=Path("point-inspection/fixture"))
     parser.add_argument("--output", type=Path, default=Path("artifacts/python-report"))
+    parser.add_argument("--discover", action="store_true", help="Explain selection without starting a server or SA")
+    parser.add_argument("--server-path", type=Path)
+    parser.add_argument("--installation-id")
+    parser.add_argument("--server-version")
+    parser.add_argument("--search-root", type=Path)
+    parser.add_argument("--sa-path", type=Path)
+    parser.add_argument("--allow-prerelease", action="store_true")
     args = parser.parse_args()
+    if args.live or args.discover:
+        from briosa import BriosaClient, BriosaClientOptions, BriosaServerSelection, BriosaStartOptions, discover_installations
+        selection = BriosaServerSelection(
+            executable_path=args.server_path, installation_id=args.installation_id,
+            version=args.server_version, search_roots=(args.search_root,) if args.search_root else (),
+            spatial_analyzer_executable_path=args.sa_path, allow_prerelease=args.allow_prerelease,
+        )
+        if args.discover:
+            from dataclasses import asdict
+            report = discover_installations(selection)
+            print(json.dumps(asdict(report), indent=2, default=str))
+            return 0 if report.selected else 1
     if args.output.exists():
         raise ValueError("Output must be a new directory")
     nominals = load_points(args.fixture / "nominals.csv")
     scenario = json.loads((args.fixture / "scenario.json").read_text(encoding="utf-8"))
     validate_scenario(scenario, nominals)
     if args.live:
-        from briosa import BriosaClient, BriosaClientOptions, BriosaStartOptions
         client = BriosaClient(BriosaClientOptions(command_timeout=10))
         try:
-            await client.start(BriosaStartOptions(launch_spatial_analyzer=False))
+            await client.start(BriosaStartOptions(launch_spatial_analyzer=False, server_selection=selection))
             snapshot = await client.get_server_snapshot()
             if not snapshot.ready_for_mp or not all(snapshot.supports(method) for method in METHODS):
                 raise ValueError("Required operation unavailable or SA not ready")

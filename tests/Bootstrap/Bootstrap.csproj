@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../point-inspection/grpc/Bootstrap/*.cs" Link="Bootstrap/%(Filename)%(Extension)" />
+    <None Include="Fixtures/selection-cases.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

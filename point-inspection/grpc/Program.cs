@@ -2,12 +2,32 @@ using Briosa;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Inspection;
+using Inspection.Bootstrap;
 
 try
 {
     using var cancellation = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
     var options = Workbench.Options(args);
+    var selection = new BriosaServerSelection
+    {
+        ExecutablePath = options.GetValueOrDefault("--server-path"),
+        InstallationId = options.GetValueOrDefault("--installation-id"),
+        Version = options.GetValueOrDefault("--server-version"),
+        SearchRoots = options.TryGetValue("--search-root", out var root) ? [root] : [],
+        SpatialAnalyzerExecutablePath = options.GetValueOrDefault("--sa-path"),
+        AllowPrerelease = options.ContainsKey("--allow-prerelease"),
+    };
+    selection.Validate();
+    if (options.ContainsKey("--endpoint") && (options.Keys.Any(k => k is "--server-path" or
+        "--installation-id" or "--server-version" or "--search-root" or "--sa-path" or "--allow-prerelease" or "--discover")))
+        throw new ArgumentException("An external endpoint cannot be combined with local installation selection.");
+    if (options.ContainsKey("--discover"))
+    {
+        var discovered = BriosaInstallations.Discover(selection);
+        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(discovered, Workbench.Json));
+        return discovered.Selected is null ? 1 : 0;
+    }
     var fixture = options.GetValueOrDefault("--fixture", "point-inspection/fixture");
     var nominals = Workbench.LoadPoints(Path.Combine(fixture, "nominals.csv"));
     var scenario = Workbench.LoadScenario(fixture, nominals);
@@ -15,8 +35,9 @@ try
     var output = options.GetValueOrDefault("--output", "artifacts/grpc-report");
     if (Directory.Exists(output) || File.Exists(output)) throw new IOException("Output must be a new directory.");
     Report report;
+    await using var ownedServer = live && !options.ContainsKey("--endpoint") ? LocalServer.Start(selection) : null;
     await using (IMeasurements measurements = live ?
-        new GrpcMeasurements(scenario, options.GetValueOrDefault("--endpoint", "http://127.0.0.1:50051"), cancellation.Token) :
+        new GrpcMeasurements(scenario, ownedServer?.Endpoint.AbsoluteUri ?? options["--endpoint"], cancellation.Token, ownedServer) :
         new SyntheticMeasurements(scenario, Workbench.LoadPoints(Path.Combine(fixture, "measured.csv"))))
     {
         if (measurements is GrpcMeasurements grpc) await grpc.Start();
@@ -55,6 +76,7 @@ sealed class GrpcMeasurements : IMeasurements
 {
     private readonly Scenario _scenario;
     private readonly CancellationToken _cancellation;
+    private readonly LocalServer? _ownedServer;
     private readonly GrpcChannel _channel;
     private readonly DiscoveryService.DiscoveryServiceClient _discovery;
     private readonly SpatialAnalyzerSdkLifecycle.SpatialAnalyzerSdkLifecycleClient _sdk;
@@ -63,25 +85,22 @@ sealed class GrpcMeasurements : IMeasurements
     private int? _ownedGeneration;
     private static DateTime Deadline => DateTime.UtcNow.AddSeconds(10);
 
-    public GrpcMeasurements(Scenario scenario, string endpoint, CancellationToken cancellation)
+    public GrpcMeasurements(Scenario scenario, string endpoint, CancellationToken cancellation, LocalServer? ownedServer)
     {
         var uri = new Uri(endpoint);
         if (uri.Scheme != "http" || uri.Host != "127.0.0.1" || uri.AbsolutePath != "/" || uri.Query != "" || uri.UserInfo != "")
             throw new ArgumentException("Use a local http://127.0.0.1:port endpoint.");
         _scenario = scenario;
         _cancellation = cancellation;
+        _ownedServer = ownedServer;
         _channel = GrpcChannel.ForAddress(uri);
         _discovery = new(_channel); _sdk = new(_channel); _utility = new(_channel); _analysis = new(_channel);
     }
 
     public async Task Start()
     {
-        var info = await _discovery.GetServerInfoAsync(new(), deadline: Deadline, cancellationToken: _cancellation);
-        if (info.Version is null || info.Version.BriosaVersion != "0.6.1" ||
-            info.Version.SourceRevision != "32a3b56ba4ae31ea5ec6ec3b2aa051eb61c866aa" ||
-            info.Version.SpatialAnalyzerTarget != _scenario.SaTarget || info.Version.ProtocolPackage != "briosa" ||
-            info.TargetIsolationMode != TargetIsolationMode.SingleTenant)
-            throw new InvalidOperationException("Server identity does not match the pinned protocol release.");
+        var info = await WaitForDiscovery();
+        ValidateServer(info);
         var caps = await _discovery.ListCapabilitiesAsync(new(), deadline: Deadline, cancellationToken: _cancellation);
         if (caps.SpatialAnalyzerTarget != _scenario.SaTarget || caps.ProtocolPackage != "briosa" ||
             Workbench.RequiredMethods.Any(m => !caps.Operations.Any(c => c.FullyQualifiedMethod == m)))
@@ -95,10 +114,46 @@ sealed class GrpcMeasurements : IMeasurements
         _ownedGeneration = state.SdkGeneration;
         state = (await _sdk.ConnectToSpatialAnalyzerAsync(new() { ExpectedSdkGeneration = _ownedGeneration.Value }, deadline: Deadline, cancellationToken: _cancellation)).State;
         info = await _discovery.GetServerInfoAsync(new(), deadline: Deadline, cancellationToken: _cancellation);
+        ValidateServer(info);
         if (state is null || !state.ReadyForMp || state.SdkGeneration != _ownedGeneration || !info.ReadyForMp ||
             info.ActivatedSdkIdentity?.MatchState != RuntimeIdentityMatchState.ExactMatch ||
             info.ConnectedSpatialAnalyzerIdentity?.MatchState != RuntimeIdentityMatchState.ExactMatch)
             throw new InvalidOperationException("Exact identities and execution readiness are required.");
+    }
+
+    private async Task<GetServerInfoResponse> WaitForDiscovery()
+    {
+        using var startup = CancellationTokenSource.CreateLinkedTokenSource(_cancellation);
+        startup.CancelAfter(TimeSpan.FromSeconds(30));
+        while (true)
+        {
+            startup.Token.ThrowIfCancellationRequested();
+            if (_ownedServer?.HasExited == true) throw new IOException("Owned server exited during startup.");
+            try { return await _discovery.GetServerInfoAsync(new(), deadline: Deadline, cancellationToken: startup.Token); }
+            catch (RpcException error) when (error.StatusCode == StatusCode.Unavailable && _ownedServer is not null)
+            {
+                // Read-only readiness polling, before any SDK action. Never retry an MP.
+                await Task.Delay(100, startup.Token);
+            }
+        }
+    }
+
+    private void ValidateServer(GetServerInfoResponse info)
+    {
+        var version = info.Version;
+        if (version is null || version.SpatialAnalyzerTarget != _scenario.SaTarget ||
+            !ServerReleaseVersion.IsValid(version.BriosaVersion) || version.SourceRevision.Length != 40 ||
+            !version.SourceRevision.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f') ||
+            version.ProtocolPackage != "briosa" || info.TargetIsolationMode != TargetIsolationMode.SingleTenant ||
+            info.Compatibility is { Major: 0 } ||
+            !ServerSelectionPolicy.Compatible(info.Compatibility?.Major ?? 0, info.Compatibility?.Revision ?? 0,
+                version.BriosaVersion, version.SourceRevision))
+            throw new InvalidOperationException("Server target or behavioral contract is incompatible.");
+        if (_ownedServer is { } owned &&
+            (version.BriosaVersion != owned.Installation.Version || version.SourceRevision != owned.Installation.SourceRevision ||
+             (info.Compatibility?.Major ?? 0) != owned.Installation.ContractMajor ||
+             (info.Compatibility?.Revision ?? 0) != owned.Installation.ContractRevision))
+            throw new InvalidOperationException("Live server identity differs from the selected installation.");
     }
 
     private PointName Name(string name) => new() { CollectionName = _scenario.Collection, GroupName = _scenario.Group, TargetName = name };
@@ -137,6 +192,6 @@ sealed class GrpcMeasurements : IMeasurements
                 await _sdk.StopSpatialAnalyzerSdkAsync(new() { ExpectedSdkGeneration = generation }, deadline: Deadline);
         }
         finally { _channel.Dispose(); }
-        // The externally started server and SA application remain running.
+        // External servers and SA remain running; the caller disposes its owned server.
     }
 }

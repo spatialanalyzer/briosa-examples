@@ -4,7 +4,7 @@ $repo = Split-Path $PSScriptRoot -Parent
 Push-Location $repo
 try {
     ./eng/Import-Protocol.ps1
-    foreach ($project in @('point-inspection/grpc/PointInspection.Grpc.csproj', 'point-inspection/dotnet/PointInspection.csproj', 'tests/FakeServer/FakeServer.csproj')) {
+    foreach ($project in @('point-inspection/grpc/PointInspection.Grpc.csproj', 'point-inspection/dotnet/PointInspection.csproj', 'tests/FakeServer/FakeServer.csproj', 'tests/Bootstrap/Bootstrap.csproj')) {
         & $Dotnet restore $project --locked-mode
         if ($LASTEXITCODE) { throw "Restore failed: $project" }
         & $Dotnet build $project -c Release --no-restore
@@ -12,11 +12,14 @@ try {
     }
     Push-Location point-inspection/typescript
     try {
-        npm.cmd ci --ignore-scripts
+        $npmCli = Join-Path (Split-Path (Get-Command npm.cmd -ErrorAction Stop).Source -Parent) 'node_modules/npm/bin/npm-cli.js'
+        & $Node $npmCli ci --ignore-scripts
         if ($LASTEXITCODE) { throw 'npm ci failed' }
-        npm.cmd run build
+        & $Node $npmCli run build
         if ($LASTEXITCODE) { throw 'TypeScript build failed' }
     } finally { Pop-Location }
+    & $Dotnet run --project tests/Bootstrap/Bootstrap.csproj -c Release --no-build --no-restore
+    if ($LASTEXITCODE) { throw 'Raw bootstrap fixture verification failed' }
     & $Python -m venv point-inspection/python/.venv
     if ($LASTEXITCODE) { throw 'venv creation failed' }
     $venvPython = Join-Path $repo 'point-inspection/python/.venv/Scripts/python.exe'

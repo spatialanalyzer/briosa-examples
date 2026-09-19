@@ -2,9 +2,9 @@
 
 Portable validation uses an explicitly named synthetic test server. It has no
 COM, SpatialAnalyzer, SDK, hardware, or license dependency. Its executable is
-named `Briosa.Server.exe` only so the published clients can launch it through
-their documented `BRIOSA_SERVER_PATH` override. Never install this test double
-as a product or leave that override set after a test.
+named `Briosa.Server.exe` so the published clients and raw bootstrap can launch
+it through explicit per-start selection. The harness creates disposable portable
+manifests around this test double. Never register or install it as a product.
 
 The harness starts the test double in child-process environments. It exercises
 the actual generated gRPC calls and published language clients, rather than
@@ -21,13 +21,29 @@ frame changes, missing points, MP failure, unknown completion, missing result
 fields, nonfinite coordinates, deadlines, and invalid fixture input. Failed
 calls are not automatically replayed. Failed inspections do not publish reports.
 
+The raw bootstrap passes the same 24 server-owned selection fixtures as the
+clients. Process scenarios also check inert discovery, invalid explicit choices
+without environment fallback, a newer compatible server, the exact legacy
+exception, contract rejection, selected-manifest/runtime mismatch before SDK
+startup, and preservation of external server ownership.
+
+On 2026-09-19, the full portable suite passed **73 scenarios** using the public
+SA 2026 client **0.2.0** packages from NuGet, npm, and PyPI and the verified
+Server **0.7.0** protocol artifact. The bootstrap also passed all **24** shared
+selection vectors, native permission-descriptor checks, and missing explicit-path
+isolation. Compatible newer server identities in this suite are simulations in
+the synthetic test double, not claims that a future server release was tested.
+The [server compatibility matrix](https://github.com/spatialanalyzer/briosa/blob/main/compatibility/matrix.json)
+separately records actual published client/server combinations.
+
 ## Licensed acceptance — not executed
 
 This example currently has no licensed-SA validation record. Before an agent
 controls SA, obtain explicit permission for the current task under the
 [Briosa repository guide](https://github.com/spatialanalyzer/briosa/blob/main/AGENTS.md).
 
-Use the documented Server 0.6.1 / client 0.1.1 pairing:
+Use the published package versions and selected compatible server recorded by
+the release acceptance evidence:
 
 1. Record the exact installed SA, SDK, server, protocol and client versions.
 2. Prepare the [synthetic job](../point-inspection/fixture/README.md).
