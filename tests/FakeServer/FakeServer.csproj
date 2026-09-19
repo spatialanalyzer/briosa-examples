@@ -3,6 +3,5 @@
   <ItemGroup>
     <ProjectReference Include="../../protocol/Protocol.csproj" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
-    <Compile Include="../../point-inspection/csharp/Inspection.cs" Link="Inspection.cs" />
   </ItemGroup>
 </Project>

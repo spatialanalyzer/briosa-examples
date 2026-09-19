@@ -1,69 +1,58 @@
-# Validation and live acceptance
+# Contributing and validation
 
-Portable validation uses an explicitly named synthetic test server. It has no
-COM, SpatialAnalyzer, SDK, hardware, or license dependency. Its executable is
-named `Briosa.Server.exe` so the published clients and raw bootstrap can launch
-it through explicit per-start selection. The harness creates disposable portable
-manifests around this test double. Never register or install it as a product.
+The tutorials are small programs for an already-running SpatialAnalyzer job.
+Keep the teaching code direct: Briosa calls, ordinary variables and loops,
+and language-native resource cleanup. Test fixtures and engineering options
+belong under `tests/` and `eng/`.
 
-The harness starts the test double in child-process environments. It exercises
-the actual generated gRPC calls and published language clients, rather than
-substituting private client internals. It verifies matching reports and failure
-behavior. It does not establish licensed-SA compatibility or validate COM.
+## Portable checks
 
-Run `./eng/Test.ps1` from the repository root on Windows. The script imports a
-hash-verified protocol artifact, restores locked packages, builds the examples,
-and runs the matrix. Test evidence goes to a new `artifacts/test-*` folder.
+From the repository root on Windows x64 with .NET SDK 10.0.401, Node.js 24,
+and Python 3.12:
 
-Covered scenarios include synthetic reports, transport-backed reports, server
-identity mismatch, unavailable capability, failed readiness, incorrect units,
-frame changes, missing points, MP failure, unknown completion, missing result
-fields, nonfinite coordinates, deadlines, and invalid fixture input. Failed
-calls are not automatically replayed. Failed inspections do not publish reports.
+```powershell
+./eng/Test.ps1
+```
 
-The raw bootstrap passes the same 24 server-owned selection fixtures as the
-clients. Process scenarios also check inert discovery, invalid explicit choices
-without environment fallback, a newer compatible server, the exact legacy
-exception, contract rejection, selected-manifest/runtime mismatch before SDK
-startup, and preservation of external server ownership.
+This verifies the published protocol archive, restores locked packages, and
+builds the actual examples. The test harness makes temporary source copies
+with only the server selection/endpoint changed to its isolated test server.
+It then runs those programs through successful reads, different units, failed
+or incomplete calls, incompatible targets/contracts, and disconnected startup.
 
-On 2026-09-19, the full portable suite passed **73 scenarios** using the public
-SA 2026 client **0.2.0** packages from NuGet, npm, and PyPI and the verified
-Server **0.7.0** protocol artifact. The bootstrap also passed all **24** shared
-selection vectors, native permission-descriptor checks, and missing explicit-path
-isolation. Compatible newer server identities in this suite are simulations in
-the synthetic test double, not claims that a future server release was tested.
-The [server compatibility matrix](https://github.com/spatialanalyzer/briosa/blob/main/compatibility/matrix.json)
-separately records actual published client/server combinations.
+The harness verifies output values and call order, checks that failed operations
+are not replayed, checks client SDK cleanup, and checks that raw gRPC leaves the
+external server alive. Test-only connection changes are saved with the evidence
+under `artifacts/test-*/`. The tutorial sources contain no test switch or
+synthetic measurement path. No real server distribution, SDK, or SA is launched.
 
-## Licensed acceptance — not executed
+The server/client repositories own the broader installation selection and
+compatibility suites. These tutorials do not duplicate their bootstrap code.
 
-This example currently has no licensed-SA validation record. Before an agent
-controls SA, obtain explicit permission for the current task under the
-[Briosa repository guide](https://github.com/spatialanalyzer/briosa/blob/main/AGENTS.md).
+On 2026-09-19, `eng/Test.ps1` passed all **34 scenarios** using the published
+0.2.0 clients and verified 0.7.0 protocol. All C# and TypeScript builds passed.
+This evidence covers the tutorial rewrite in issue #7; the earlier workbench's
+report and bootstrap checks are retained in Git history rather than presented
+as checks of these simpler programs.
 
-Use the published package versions and selected compatible server recorded by
-the release acceptance evidence:
+## Licensed acceptance
 
-1. Record the exact installed SA, SDK, server, protocol and client versions.
-2. Prepare the [synthetic job](../point-inspection/fixture/README.md).
-3. Verify there are no competing Briosa or experimental SDK clients.
-4. Run each example separately with `--live` and a fresh output directory.
-5. Compare CSV with `expected.csv`: P3/P8 fail; the other eight checks pass.
-6. Verify the units and working-frame information matches the prepared job.
-7. Verify application shutdown leaves SA and the scratch job open.
-8. Remove one scratch point and repeat: expect exit 1 and no report.
-9. Change the working frame or length unit and repeat: expect rejection before
-   point inspection. Restore the scratch job between cases.
-10. Record observations and limitations separately for each exact SA target.
+Licensed SA validation of this simplified revision has **not been run**.
+Portable checks demonstrate program behavior against a test double.
 
-Do not test destructive recovery, kill an SA process, or attach multiple SDK
-clients as part of this acceptance procedure. Portable tests cover ambiguous
-completion. A live timeout requires operator reconciliation before another run.
+With permission to use a licensed installation:
 
-## Follow-up scope
+1. Follow [setup](setup.md) using a scratch SA job and the two documented points.
+2. Run each language client individually and compare its coordinates and
+   5-unit distance with SA. Confirm SA remains open after each run.
+3. Start and connect Briosa in Control Center. Run the raw gRPC example and
+   confirm both the server and SA remain open.
+4. Change a point name in each example to a nonexistent point. Confirm it stops
+   with an error and prints no distance. Restore the name afterward.
+5. Record the exact SA/server/client versions, observed output, and any gaps
+   separately from the portable evidence. Do not commit operational logs or
+   customer measurements.
 
-The initial example targets SA 2026.1.0529.7. The published SA 2024 client and
-server products require their own example package pins and licensed validation;
-changing a version string does not qualify that target. A local TypeScript web
-interface and fixture creation/write-back remain separate follow-up milestones.
+The examples make sequential reads, not an atomic snapshot of a changing job.
+They do not retry calls. A failed or timed-out call may have an unknown outcome;
+consult Briosa's error details before deciding what to do next.
