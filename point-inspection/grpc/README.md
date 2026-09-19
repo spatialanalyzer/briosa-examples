@@ -1,3 +1,14 @@
+# Create and read two points with direct C# gRPC
+
+[Prepare your running SA job](../../docs/setup.md) first and connect it in Control Center.
+Start with an empty SA job. This example creates two points, then prints
+their coordinates and distance.
+
+## The program
+
+The complete [Program.cs](Program.cs) program is:
+
+```csharp
 using Briosa;
 using Grpc.Net.Client;
 
@@ -52,3 +63,40 @@ static void RequireResult(MpExecutionDetails? execution, bool hasValues = true)
         execution.OutputRetrievals.Any(output => output.State != OutputRetrievalState.Retrieved))
         throw new InvalidOperationException("SA did not return a complete successful result.");
 }
+```
+
+## How it works
+
+`GrpcChannel` connects to the endpoint shown by Control Center. The generated
+service clients expose the protobuf RPCs directly. This project uses standard
+gRPC packages and the verified published protocol; it has no Briosa language
+client dependency.
+
+The first call checks the server target, compatibility contract, and readiness.
+Then the program reads units, creates a collection and two points, and reads
+their coordinates and distance, just like the language-client versions.
+The construction requests set each field explicitly, including zero coordinates.
+
+Raw responses include MP status and optional output fields. The small
+`RequireResult` function prevents a missing value from appearing as zero or a
+failed MP from appearing successful. The language clients perform these checks
+for you. RPC deadlines bound the wait; failed calls stop the program and are
+not retried.
+
+Disposing the channel closes this program's connection. The Control Center
+server and its SDK session stay running.
+
+## Run it
+
+Copy the endpoint shown in Control Center into `GrpcChannel.ForAddress(...)`
+if it differs from the example. From the repository root, using .NET SDK 10.0.401:
+
+```powershell
+./eng/Import-Protocol.ps1
+dotnet run --project point-inspection/grpc
+```
+
+The distance is **5.000** in SA's current length unit. The program leaves SA
+open with both points in its demo collection. To repeat the example, use a fresh
+empty job or choose an unused collection name in the source.
+If a call fails, the program stops and displays the error; it does not retry.

@@ -2,6 +2,5 @@
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Briosa.2026.1.0529.7" Version="0.2.0" />
-    <Compile Include="../csharp/Inspection.cs" Link="Inspection.cs" />
   </ItemGroup>
 </Project>

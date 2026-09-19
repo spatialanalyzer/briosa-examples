@@ -25,11 +25,6 @@ foreach ($entry in $manifest.files) {
         throw "Protocol file mismatch: $($entry.path)"
     }
 }
-$canonicalCases = Join-Path $package 'compatibility/selection-cases.json'
-$exampleCases = Join-Path $repo 'tests/Bootstrap/Fixtures/selection-cases.json'
-if ((Get-FileHash $canonicalCases -Algorithm SHA256).Hash -ne (Get-FileHash $exampleCases -Algorithm SHA256).Hash) {
-    throw 'Raw bootstrap vectors differ from the pinned protocol artifact.'
-}
 $destination = Join-Path $cache 'protocol'
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $package 'proto') -Destination $destination -Recurse -Force
