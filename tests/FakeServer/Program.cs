@@ -25,7 +25,8 @@ await app.RunAsync();
 sealed class FakeData
 {
     public string Case { get; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_CASE") ?? "ok";
-    public const string Version = "0.6.1";
+    public string Version => Case == "legacy" ? "0.6.1" : Case == "compatible-newer" ? "0.7.1" : "0.7.0";
+    public string SourceRevision => Case == "legacy" ? "32a3b56ba4ae31ea5ec6ec3b2aa051eb61c866aa" : new string('a', 40);
     public bool Started { get; set; }
     public bool Ready { get; set; }
     public int FrameReads { get; set; }
@@ -90,11 +91,12 @@ sealed class Discovery(FakeData data) : DiscoveryService.DiscoveryServiceBase
     {
         Version = new VersionCoordinates
         {
-            BriosaVersion = data.Case == "wrong-version" ? "99.0.0" : FakeData.Version,
-            SourceRevision = "32a3b56ba4ae31ea5ec6ec3b2aa051eb61c866aa",
+            BriosaVersion = data.Case == "wrong-version" ? "99.0.0" : data.Version,
+            SourceRevision = data.Case == "wrong-source" ? new string('b', 40) : data.SourceRevision,
             ProtocolPackage = "briosa",
             SpatialAnalyzerTarget = "2026.1.0529.7"
         },
+        Compatibility = data.Case == "legacy" ? null : new CompatibilityContract { Major = data.Case == "wrong-contract" ? 2u : 1u, Revision = 0 },
         ReadyForMp = data.Ready,
         TargetIsolationMode = TargetIsolationMode.SingleTenant,
         WorkerState = data.Ready ? WorkerRuntimeState.Ready : WorkerRuntimeState.Stopped,

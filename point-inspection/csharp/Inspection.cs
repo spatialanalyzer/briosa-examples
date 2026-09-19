@@ -41,10 +41,11 @@ public static class Workbench
         for (int i = 0; i < args.Length; i++)
         {
             var key = args[i];
-            if (key == "--live") result.Add(key, "true");
-            else if (key is "--fixture" or "--output" or "--endpoint" && i + 1 < args.Length)
+            if (key is "--live" or "--discover" or "--allow-prerelease") result.Add(key, "true");
+            else if (key is "--fixture" or "--output" or "--endpoint" or "--server-path" or
+                "--installation-id" or "--server-version" or "--search-root" or "--sa-path" && i + 1 < args.Length)
                 result.Add(key, args[++i]);
-            else throw new InvalidDataException("Use [--live] [--fixture directory] [--output new-directory] [--endpoint http://127.0.0.1:50051].");
+            else throw new InvalidDataException("Use --live, --discover, --fixture, --output, --server-path, --installation-id, --server-version, --search-root, --sa-path, --allow-prerelease; --endpoint is raw gRPC only.");
         }
         return result;
     }

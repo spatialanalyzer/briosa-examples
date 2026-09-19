@@ -56,23 +56,21 @@ are in millimeters; JSON also records frame identity. No report is published
 after a failed call, missing output, or a detected context change.
 See the shared [report contract](docs/report-contract.md) for fields and rules.
 
-## Release pairing
+## Compatibility and package pins
 
-| Implementation | Package pin | Server pairing |
-| --- | --- | --- |
-| Direct gRPC | Hash-verified protocol 0.6.1 | Server 0.6.1, SA 2026.1.0529.7 |
-| .NET | `Briosa.2026.1.0529.7` 0.1.1 | Server 0.6.1, SA 2026.1.0529.7 |
-| TypeScript | `@spatialanalyzer/briosa-2026.1.0529.7` 0.1.1 via `briosa` alias | Server 0.6.1, SA 2026.1.0529.7 |
-| Python | `briosa-2026-1-0529-7` 0.1.1 | Server 0.6.1, SA 2026.1.0529.7 |
+The examples use published client **0.2.0** and the hash-verified Server **0.7.0**
+protocol for SA **2026.1.0529.7**. Dependency lockfiles remain exact. Runtime
+selection follows behavioral contract **1.0**, independently of that generation
+pin; the reviewed Server **0.6.1** build is the narrow legacy exception.
 
-All implementations use Server **0.6.1**. Client **0.1.1** validates the exact
-server version, source revision, and SA target. Install the matching server
-distribution; an unchanged protobuf schema does not make other builds compatible.
+Use the package version recorded in each implementation's lockfile. The portable
+acceptance suite consumes the actual NuGet, npm, and PyPI releases.
 
-References: [Server 0.6.1](https://github.com/spatialanalyzer/briosa/releases/tag/v0.6.1),
-[.NET 0.1.1](https://github.com/spatialanalyzer/briosa-dotnet/releases/tag/v0.1.1),
-[JS/TS 0.1.1](https://github.com/spatialanalyzer/briosa-js/releases/tag/v0.1.1),
-[Python 0.1.1](https://github.com/spatialanalyzer/briosa-py/releases/tag/v0.1.1).
+See [side-by-side applications](docs/side-by-side.md) for automatic discovery,
+per-application installation/version/path choices, and migration from shared
+path variables. `--discover` explains selection without starting a server or SA.
+The raw gRPC implementation has a separately explained
+[BCL-only bootstrap](point-inspection/grpc/Bootstrap/README.md).
 
 ## Live SA workflow
 
@@ -81,24 +79,26 @@ open and unchanged. Use one application against one SA target at a time. These
 examples read named points listed in the inspection plan; a project-browser
 example can add collection/group enumeration independently.
 
-For direct gRPC, start a dedicated released Server 0.6.1 on loopback with its
-SDK stopped. Do not connect that server through Control Center first: this
-example owns the SDK lifecycle. Then run:
+All four variants discover and own their local Briosa server by default. Append
+`--live` to the synthetic commands after preparing the SA job. Use an explicit
+per-application selection when needed:
 
 ```powershell
-dotnet run --project point-inspection/grpc -c Release -- --live --endpoint http://127.0.0.1:50051 --output artifacts/grpc-live
+dotnet run --project point-inspection/grpc -c Release -- --live --server-version 0.7.0 --output artifacts/grpc-live
 ```
 
-The example checks build identity and capabilities, starts an SDK generation,
-connects it to the already-running SA application, and requires exact identities
-and execution readiness. All calls have deadlines. Cleanup stops only its SDK
-generation; the externally started server and SA remain open. If SDK startup
-times out before returning its generation, inspect the server before trying
-again: the example cannot safely infer ownership from a missing response.
+The raw example validates the selected manifest against live server identity,
+checks capabilities, starts an SDK generation, connects to the prepared SA job,
+and requires exact SDK/SA identities and readiness. Its RPCs have deadlines;
+cleanup stops its guarded SDK generation and owned server, leaving SA open.
+The language-client examples express the same sequence through client APIs.
 
-For language-client variants, install client 0.1.1 and the matching Server
-0.6.1 distribution, set `BRIOSA_SERVER_PATH` if needed, and append `--live` to
-the same console commands. Python additionally requires its isolated environment:
+For an external dedicated server with its SDK stopped, raw gRPC also accepts
+`--endpoint http://127.0.0.1:50051`. It leaves that server open. An ambiguous SDK
+startup response cannot prove generation ownership; inspect the server before
+trying again. Local selectors and an external endpoint are mutually exclusive.
+
+Python additionally requires its isolated environment:
 
 ```powershell
 python -m venv point-inspection/python/.venv

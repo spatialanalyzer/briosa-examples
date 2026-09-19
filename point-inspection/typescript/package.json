@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {"build": "tsc -p tsconfig.json"},
   "engines": {"node": ">=22"},
-  "dependencies": {"briosa": "npm:@spatialanalyzer/briosa-2026.1.0529.7@0.1.1"},
+  "dependencies": {"briosa": "npm:@spatialanalyzer/briosa-2026.1.0529.7@0.2.0"},
   "devDependencies": {"@types/node": "26.1.2", "typescript": "6.0.3"}
 }

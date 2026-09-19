@@ -3,9 +3,9 @@ import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
-  createBriosaClient, getActiveUnits, getWorkingFrameProperties,
+  createBriosaClient, discoverInstallations, getActiveUnits, getWorkingFrameProperties,
   getPointCoordinate, getPointToPointDistance, BriosaOperationError,
-  type BriosaClient,
+  type BriosaClient, type BriosaServerSelection,
 } from 'briosa';
 
 type XYZ = [number, number, number];
@@ -141,9 +141,23 @@ async function main() {
   const args = process.argv.slice(2), options = new Map<string, string>();
   for (let i = 0; i < args.length; i++) {
     if (options.has(args[i])) throw new Error('Duplicate argument');
-    if (args[i] === '--live') options.set(args[i], 'true');
-    else if (['--fixture', '--output'].includes(args[i]) && i + 1 < args.length) options.set(args[i], args[++i]);
-    else throw new Error('Use [--live] [--fixture directory] [--output new-directory]');
+    if (['--live', '--discover', '--allow-prerelease'].includes(args[i])) options.set(args[i], 'true');
+    else if (['--fixture', '--output', '--server-path', '--installation-id', '--server-version', '--search-root', '--sa-path'].includes(args[i]) && i + 1 < args.length)
+      options.set(args[i], args[++i]);
+    else throw new Error('Use --live, --discover, --fixture, --output, --server-path, --installation-id, --server-version, --search-root, --sa-path, --allow-prerelease');
+  }
+  const serverSelection: BriosaServerSelection = {
+    ...(options.has('--server-path') ? {executablePath: options.get('--server-path')!} : {}),
+    ...(options.has('--installation-id') ? {installationId: options.get('--installation-id')!} : {}),
+    ...(options.has('--server-version') ? {version: options.get('--server-version')!} : {}),
+    ...(options.has('--search-root') ? {searchRoots: [options.get('--search-root')!]} : {}),
+    ...(options.has('--sa-path') ? {spatialAnalyzerExecutablePath: options.get('--sa-path')!} : {}),
+    allowPrerelease: options.has('--allow-prerelease'),
+  };
+  if (options.has('--discover')) {
+    const report = await discoverInstallations(serverSelection);
+    console.log(JSON.stringify(report, null, 2));
+    return report.selected ? 0 : 1;
   }
   const fixture = options.get('--fixture') ?? 'point-inspection/fixture';
   const output = options.get('--output') ?? 'artifacts/typescript-report';
@@ -159,7 +173,7 @@ async function main() {
     const interrupt = () => controller.abort();
     process.once('SIGINT', interrupt);
     try {
-      await client.start({launchSpatialAnalyzer: false, signal: controller.signal});
+      await client.start({launchSpatialAnalyzer: false, serverSelection, signal: controller.signal});
       const snapshot = await client.getServerSnapshot({signal: controller.signal});
       if (!snapshot.readyForMp || !methods.every(m => snapshot.supports(m))) throw new Error('Required operation unavailable or SA not ready');
       report = await inspect(new ClientMeasurements(client, scenario, controller.signal), scenario, nominals, 'live');
