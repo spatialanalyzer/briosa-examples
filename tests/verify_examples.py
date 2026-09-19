@@ -82,8 +82,8 @@ def main():
                  "launchSpatialAnalyzer: false",
                  f"launchSpatialAnalyzer: false, serverSelection: {{ executablePath: {json.dumps(server_path)} }}")
     replace_once(samples / "point-inspection/python/inspection.py",
-                 "from briosa import BriosaClient, BriosaStartOptions, PointName",
-                 "from briosa import BriosaClient, BriosaStartOptions, BriosaServerSelection, PointName")
+                 "from briosa import BriosaClient, BriosaStartOptions, CollectionName, PointName, Vector",
+                 "from briosa import BriosaClient, BriosaStartOptions, BriosaServerSelection, CollectionName, PointName, Vector")
     replace_once(samples / "point-inspection/python/inspection.py",
                  "launch_spatial_analyzer=False",
                  f"launch_spatial_analyzer=False, server_selection=BriosaServerSelection(executable_path={server_path!r})")
@@ -102,16 +102,20 @@ def main():
         "python": [args.python, "point-inspection/python/inspection.py"],
     }
     completed = []
+    collections = {"grpc": "BriosaGrpcDemo", "dotnet": "BriosaDotnetDemo",
+                   "typescript": "BriosaTypeScriptDemo", "python": "BriosaPythonDemo"}
     for name, command in commands.items():
         cases = ["ok", "inches", "wrong-target", "wrong-contract", "disconnected",
-                 "missing-point", "unknown", "missing-output"]
+                 "missing-point", "unknown", "missing-output", "collection-failure",
+                 "write-unknown", "second-write-failure"]
         if name == "grpc":
-            cases += ["mp-result-failure", "deadline"]
+            cases += ["mp-result-failure", "deadline", "write-result-failure"]
         for case in cases:
             calls_path = evidence / f"{name}-{case}.calls"
             env = os.environ.copy()
             env.pop("BRIOSA_SERVER_PATH", None)
             env.update(BRIOSA_EXAMPLE_TEST_CASE=case, BRIOSA_EXAMPLE_TEST_LOG=str(calls_path),
+                       BRIOSA_EXAMPLE_TEST_COLLECTION=collections[name],
                        BRIOSA_EXAMPLE_TEST_EXTERNAL="1" if name == "grpc" else "0",
                        DOTNET_SYSTEM_GLOBALIZATION_INVARIANT="1")
             if Path(args.dotnet).is_absolute():
@@ -130,17 +134,23 @@ def main():
                 (evidence / f"{name}-{case}.output").write_text(result.stdout + result.stderr, encoding="utf-8")
                 calls = calls_path.read_text().splitlines() if calls_path.exists() else []
                 if case in ("ok", "inches"):
-                    unit = "inches" if case == "inches" else "millimeters"
+                    unit = "Inches" if case == "inches" else "Millimeters"
                     expected = [f"Length unit: {unit}", "P1: (0.000, 0.000, 0.000)",
                                 "P2: (3.000, 4.000, 0.000)", f"Distance: 5.000 {unit}"]
                     assert result.returncode == 0, result.stderr
                     assert result.stdout.splitlines() == expected, result.stdout
-                    assert [call for call in calls if not call.startswith("sdk.")] == ["units", "point", "point", "distance"], calls
+                    assert [call for call in calls if not call.startswith("sdk.")] == ["units", "collection.create", "point.create", "point.create", "point", "point", "distance"], calls
                 else:
                     assert result.returncode != 0, f"{name}/{case} should stop"
                     assert "Distance:" not in result.stdout, result.stdout
                     if case in ("wrong-target", "wrong-contract", "disconnected"):
                         assert "units" not in calls and "point" not in calls, calls
+                        assert not any(call.endswith(".create") for call in calls), calls
+                    elif case in ("collection-failure", "write-unknown", "second-write-failure", "write-result-failure"):
+                        assert calls.count("collection.create") == 1, calls
+                        expected_writes = 0 if case == "collection-failure" else 2 if case == "second-write-failure" else 1
+                        assert calls.count("point.create") == expected_writes, f"Write was retried or skipped: {calls}"
+                        assert "point" not in calls, "Reads continued after a failed write"
                     else:
                         assert calls.count("point") == 1, f"Failed call was replayed: {calls}"
                         assert "P1:" not in result.stdout, "Missing or failed point was printed as data"

@@ -6,18 +6,30 @@ using var channel = GrpcChannel.ForAddress("http://127.0.0.1:50051");
 var discovery = new DiscoveryService.DiscoveryServiceClient(channel);
 var utility = new UtilityOperations.UtilityOperationsClient(channel);
 var analysis = new AnalysisOperations.AnalysisOperationsClient(channel);
+var construction = new ConstructionOperations.ConstructionOperationsClient(channel);
 
 var info = await discovery.GetServerInfoAsync(new(), deadline: DateTime.UtcNow.AddSeconds(10));
 if (info.Version?.SpatialAnalyzerTarget != "2026.1.0529.7" || info.Compatibility?.Major != 1 || !info.ReadyForMp)
     throw new InvalidOperationException("Connect a compatible SA 2026 server in Control Center first.");
 
 // These are generated protobuf types; this project uses no Briosa client package.
-var first = new PointName { CollectionName = "BriosaDemo", GroupName = "Points", TargetName = "P1" };
-var second = new PointName { CollectionName = "BriosaDemo", GroupName = "Points", TargetName = "P2" };
+var collection = new CollectionName { Name = "BriosaGrpcDemo" };
+var first = new PointName { CollectionName = collection.Name, GroupName = "Points", TargetName = "P1" };
+var second = new PointName { CollectionName = collection.Name, GroupName = "Points", TargetName = "P2" };
 
 var units = await utility.GetActiveUnitsAsync(new(), deadline: DateTime.UtcNow.AddSeconds(10));
 RequireResult(units.Execution, units.HasLength);
 Console.WriteLine($"Length unit: {units.Length}");
+
+var createdCollection = await construction.ConstructCollectionAsync(
+    new() { CollectionName = collection, FolderPath = "", MakeDefaultCollection = false }, deadline: DateTime.UtcNow.AddSeconds(10));
+RequireResult(createdCollection.Execution);
+var createdFirst = await construction.ConstructPointInWorkingCoordinatesAsync(
+    new() { PointName = first, WorkingCoordinates = new() { X = 0, Y = 0, Z = 0 } }, deadline: DateTime.UtcNow.AddSeconds(10));
+RequireResult(createdFirst.Execution);
+var createdSecond = await construction.ConstructPointInWorkingCoordinatesAsync(
+    new() { PointName = second, WorkingCoordinates = new() { X = 3, Y = 4, Z = 0 } }, deadline: DateTime.UtcNow.AddSeconds(10));
+RequireResult(createdSecond.Execution);
 
 foreach (var point in new[] { first, second })
 {
@@ -33,7 +45,7 @@ RequireResult(distance.Execution, distance.HasMagnitude);
 Console.WriteLine($"Distance: {distance.Magnitude:F3} {units.Length}");
 
 // Raw gRPC returns MP status and optional fields. Language clients check these for you.
-static void RequireResult(MpExecutionDetails? execution, bool hasValues)
+static void RequireResult(MpExecutionDetails? execution, bool hasValues = true)
 {
     if (execution?.State != MpExecutionState.Succeeded || !execution.HasMpResultCode ||
         execution.MpResultCode != 2 || !hasValues ||

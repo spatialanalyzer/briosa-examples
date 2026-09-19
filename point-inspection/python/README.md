@@ -1,23 +1,24 @@
-# Read two points with Python client
+# Create and read two points with Python client
 
 [Prepare your running SA job](../../docs/setup.md) first.
-This example prints two point coordinates and their distance.
+Start with an empty SA job. This example creates two points, then prints
+their coordinates and distance.
 
 ## The program
 
-Open [inspection.py](inspection.py) and change the collection, group, and point
-names to match your job.
+The complete [inspection.py](inspection.py) program is:
 
 ```python
 import asyncio
 
-from briosa import BriosaClient, BriosaStartOptions, PointName
+from briosa import BriosaClient, BriosaStartOptions, CollectionName, PointName, Vector
 
 
 async def main():
-    # Use the collection, group, and point names from your open SA job.
-    first = PointName(collection_name="BriosaDemo", group_name="Points", target_name="P1")
-    second = PointName(collection_name="BriosaDemo", group_name="Points", target_name="P2")
+    # Start with an empty SA job. These names will be created below.
+    collection = CollectionName(name="BriosaPythonDemo")
+    first = PointName(collection_name=collection.name, group_name="Points", target_name="P1")
+    second = PointName(collection_name=collection.name, group_name="Points", target_name="P2")
 
     briosa = BriosaClient()
     try:
@@ -25,6 +26,10 @@ async def main():
 
         units = await briosa.get_active_units()
         print(f"Length unit: {units.length}")
+
+        await briosa.construction_operations.construct_collection(collection)
+        await briosa.construction_operations.construct_point_in_working_coordinates(first, Vector(0, 0, 0))
+        await briosa.construction_operations.construct_point_in_working_coordinates(second, Vector(3, 4, 0))
 
         for point in (first, second):
             coordinates = await briosa.get_point_coordinate(point)
@@ -46,6 +51,8 @@ if __name__ == "__main__":
 `start(BriosaStartOptions(launch_spatial_analyzer=False))` finds a compatible
 installed server and connects to the SA application you already opened.
 
+`construction_operations.construct_collection` creates the demo collection.
+Two `construct_point_in_working_coordinates` calls create P1 and P2.
 The loop reads the two points. `get_point_to_point_distance` asks SA to calculate
 their distance, while `asyncio.run(main())` runs the asynchronous program.
 
@@ -63,7 +70,7 @@ python -m venv point-inspection/python/.venv
 ./point-inspection/python/.venv/Scripts/python point-inspection/python/inspection.py
 ```
 
-For the setup guide's two points, the distance is **5.000 millimeters**.
-With your own points, the output reflects their current coordinates and SA units.
-If a call fails, the program stops and displays the error. Fix the cause before
-running it again.
+The distance is **5.000** in SA's current length unit. The program leaves SA
+open with both points in its demo collection. To repeat the example, use a fresh
+empty job or choose an unused collection name in the source.
+If a call fails, the program stops and displays the error; it does not retry.

@@ -19,6 +19,7 @@ app.MapGrpcService<Sdk>();
 app.MapGrpcService<Application>();
 app.MapGrpcService<Utility>();
 app.MapGrpcService<Analysis>();
+app.MapGrpcService<Construction>();
 await app.RunAsync();
 
 sealed class FakeData
@@ -28,11 +29,9 @@ sealed class FakeData
     public string SourceRevision => Case == "legacy" ? "32a3b56ba4ae31ea5ec6ec3b2aa051eb61c866aa" : new string('a', 40);
     public bool Started { get; set; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_EXTERNAL") == "1";
     public bool Ready { get; set; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_EXTERNAL") == "1" && Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_CASE") != "disconnected";
-    private readonly Dictionary<string, Point> _points = new()
-    {
-        ["P1"] = new("P1", 0, 0, 0),
-        ["P2"] = new("P2", 3, 4, 0),
-    };
+    public string? Collection { get; set; }
+    public string ExpectedCollection { get; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_COLLECTION")!;
+    public Dictionary<string, Point> Points { get; } = new();
     public void Log(string method)
     {
         var path = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_LOG");
@@ -72,7 +71,7 @@ sealed class FakeData
     public void RequireReady() { if (!Ready) throw new RpcException(new Status(StatusCode.FailedPrecondition, "Not ready")); }
     public Point Point(PointName name)
     {
-        if (name.CollectionName != "BriosaDemo" || name.GroupName != "Points" || !_points.TryGetValue(name.TargetName, out var p))
+        if (name.CollectionName != Collection || name.GroupName != "Points" || !Points.TryGetValue(name.TargetName, out var p))
             throw Failure("analysis_operations.get_point_coordinate", OperationFailureKind.MpFailure, ExecutionDisposition.Completed, StatusCode.FailedPrecondition);
         return p;
     }
@@ -102,14 +101,15 @@ sealed class Discovery(FakeData data) : DiscoveryService.DiscoveryServiceBase
     public override Task<ListCapabilitiesResponse> ListCapabilities(ListCapabilitiesRequest request, ServerCallContext context)
     {
         var response = new ListCapabilitiesResponse { SpatialAnalyzerTarget = "2026.1.0529.7", ProtocolPackage = "briosa" };
-        var ids = new[] { "utility_operations.get_active_units", "utility_operations.get_working_frame_properties", "analysis_operations.get_point_coordinate", "analysis_operations.get_point_to_point_distance" };
+        var ids = new[] { "utility_operations.get_active_units", "utility_operations.get_working_frame_properties", "analysis_operations.get_point_coordinate", "analysis_operations.get_point_to_point_distance", "construction_operations.construct_collection", "construction_operations.construct_point_in_working_coordinates" };
         string[] methods = ["/briosa.UtilityOperations/GetActiveUnits", "/briosa.UtilityOperations/GetWorkingFrameProperties",
-            "/briosa.AnalysisOperations/GetPointCoordinate", "/briosa.AnalysisOperations/GetPointToPointDistance"];
+            "/briosa.AnalysisOperations/GetPointCoordinate", "/briosa.AnalysisOperations/GetPointToPointDistance",
+            "/briosa.ConstructionOperations/ConstructCollection", "/briosa.ConstructionOperations/ConstructPointInWorkingCoordinates"];
         for (int i = 0; i < methods.Length; i++)
         {
             if (data.Case == "unsupported" && i == 2) continue;
             var split = methods[i].Split('/');
-            response.Operations.Add(new OperationCapability { OperationId = ids[i], GrpcService = split[1], Rpc = split[2], FullyQualifiedMethod = methods[i], Effect = OperationEffect.ReadOnly, ReplaySafety = ReplaySafety.Unknown, ExecutionScope = OperationExecutionScope.GlobalStateRead });
+            response.Operations.Add(new OperationCapability { OperationId = ids[i], GrpcService = split[1], Rpc = split[2], FullyQualifiedMethod = methods[i], Effect = i >= 4 ? OperationEffect.Mutating : OperationEffect.ReadOnly, ReplaySafety = ReplaySafety.Unknown, ExecutionScope = i >= 4 ? OperationExecutionScope.GlobalStateMutation : OperationExecutionScope.GlobalStateRead });
         }
         return Task.FromResult(response);
     }
@@ -146,7 +146,7 @@ sealed class Utility(FakeData data) : UtilityOperations.UtilityOperationsBase
     public override Task<GetActiveUnitsResult> GetActiveUnits(GetActiveUnitsRequest request, ServerCallContext context)
     {
         data.RequireReady(); data.Log("units");
-        return Task.FromResult(new GetActiveUnitsResult { Length = data.Case == "inches" ? "inches" : "millimeters", Angular = "degrees", Temperature = "Celsius", Execution = FakeData.Success("length", "angular", "temperature") });
+        return Task.FromResult(new GetActiveUnitsResult { Length = data.Case == "inches" ? "Inches" : "Millimeters", Angular = "degrees", Temperature = "Celsius", Execution = FakeData.Success("length", "angular", "temperature") });
     }
 
 }
@@ -192,6 +192,41 @@ sealed class Analysis(FakeData data) : AnalysisOperations.AnalysisOperationsBase
             Magnitude = Math.Sqrt(x * x + y * y + z * z),
             Execution = FakeData.Success("vector_representation", "x_value", "y_value", "z_value", "magnitude")
         });
+    }
+}
+
+sealed class Construction(FakeData data) : ConstructionOperations.ConstructionOperationsBase
+{
+    public override Task<ConstructCollectionResult> ConstructCollection(ConstructCollectionRequest request, ServerCallContext context)
+    {
+        data.RequireReady(); data.Log("collection.create");
+        if (data.Case == "collection-failure")
+            throw FakeData.Failure("construction_operations.construct_collection", OperationFailureKind.MpFailure, ExecutionDisposition.Completed, StatusCode.FailedPrecondition);
+        if (request.CollectionName?.Name != data.ExpectedCollection || data.Collection is not null ||
+            !request.HasFolderPath || request.FolderPath != "" || !request.HasMakeDefaultCollection || request.MakeDefaultCollection)
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Unexpected collection or changed working collection"));
+        data.Collection = request.CollectionName.Name;
+        return Task.FromResult(new ConstructCollectionResult { Execution = FakeData.Success() });
+    }
+
+    public override Task<ConstructPointInWorkingCoordinatesResult> ConstructPointInWorkingCoordinates(ConstructPointInWorkingCoordinatesRequest request, ServerCallContext context)
+    {
+        data.RequireReady(); data.Log("point.create");
+        var name = request.PointName;
+        var xyz = request.WorkingCoordinates;
+        if (name is null || name.CollectionName != data.Collection || name.GroupName != "Points" ||
+            xyz is null || !xyz.HasX || !xyz.HasY || !xyz.HasZ)
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Missing point identity or coordinates"));
+        if (data.Case == "second-write-failure" && data.Points.Count == 1)
+            throw FakeData.Failure("construction_operations.construct_point_in_working_coordinates", OperationFailureKind.MpFailure, ExecutionDisposition.Completed, StatusCode.FailedPrecondition);
+        if (!data.Points.TryAdd(name.TargetName, new(name.TargetName, xyz.X, xyz.Y, xyz.Z)))
+            throw new RpcException(new Status(StatusCode.AlreadyExists, "Point already created"));
+        // Simulate a committed write whose reply is lost: it must not be replayed.
+        if (data.Case == "write-unknown")
+            throw FakeData.Failure("construction_operations.construct_point_in_working_coordinates", OperationFailureKind.WorkerFailure, ExecutionDisposition.StartedOutcomeUnknown, StatusCode.Unavailable);
+        var result = new ConstructPointInWorkingCoordinatesResult { Execution = FakeData.Success() };
+        if (data.Case == "write-result-failure") result.Execution.MpResultCode = 3;
+        return Task.FromResult(result);
     }
 }
 

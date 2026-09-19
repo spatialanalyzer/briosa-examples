@@ -6,6 +6,8 @@ especially its client-library behavioral contract.
 
 - Start from a GitHub Task and use an issue-number branch.
 - Teach basic tasks against an already-running SpatialAnalyzer job.
+- Have the introductory examples construct their own two demo points from an
+  empty job, then read them. Keep these explicit construction calls simple.
 - Prefer direct Briosa calls, ordinary variables and loops, and built-in cleanup.
 - Do not add CLI option parsers, synthetic user modes, report frameworks, custom
   measurement interfaces, or copied server discovery/bootstrap implementations.
@@ -19,4 +21,4 @@ especially its client-library behavioral contract.
 - Before controlling SA or running licensed integration, obtain explicit permission for the current task.
 - Record portable evidence and licensed-SA observations separately; unexecuted validation is not passing.
 - Do not commit real customer measurements, SA jobs, or raw operational logs.
-- Keep future UI, write-back and additional-target work in their own coherent tasks.
+- Keep future UI, broader write-back and additional-target work in their own coherent tasks.

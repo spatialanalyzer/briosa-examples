@@ -1,12 +1,13 @@
 import asyncio
 
-from briosa import BriosaClient, BriosaStartOptions, PointName
+from briosa import BriosaClient, BriosaStartOptions, CollectionName, PointName, Vector
 
 
 async def main():
-    # Use the collection, group, and point names from your open SA job.
-    first = PointName(collection_name="BriosaDemo", group_name="Points", target_name="P1")
-    second = PointName(collection_name="BriosaDemo", group_name="Points", target_name="P2")
+    # Start with an empty SA job. These names will be created below.
+    collection = CollectionName(name="BriosaPythonDemo")
+    first = PointName(collection_name=collection.name, group_name="Points", target_name="P1")
+    second = PointName(collection_name=collection.name, group_name="Points", target_name="P2")
 
     briosa = BriosaClient()
     try:
@@ -14,6 +15,10 @@ async def main():
 
         units = await briosa.get_active_units()
         print(f"Length unit: {units.length}")
+
+        await briosa.construction_operations.construct_collection(collection)
+        await briosa.construction_operations.construct_point_in_working_coordinates(first, Vector(0, 0, 0))
+        await briosa.construction_operations.construct_point_in_working_coordinates(second, Vector(3, 4, 0))
 
         for point in (first, second):
             coordinates = await briosa.get_point_coordinate(point)
