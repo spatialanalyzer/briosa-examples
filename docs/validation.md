@@ -37,6 +37,42 @@ This evidence covers the tutorial rewrite in issue #7; the earlier workbench's
 report and bootstrap checks are retained in Git history rather than presented
 as checks of these simpler programs.
 
+## Upcoming runtime migration
+
+The [server runtime redesign](https://github.com/spatialanalyzer/briosa/pull/226)
+advances the behavioral compatibility major to 2. It is unreleased. These
+tutorials still use published major-1 clients and protocol artifacts; do not point
+them at a major-2 candidate. The portable `wrong-contract` scenario already
+advertises major 2 and checks rejection before SDK startup or MP calls for the
+language clients, and before MP calls for direct gRPC.
+
+When the coordinated server and language-client releases are published:
+
+1. Update all three client package pins and lockfiles together for the existing
+   exact SA target. Use their published compatible versions, not local candidates.
+2. Update `protocol/protocol.lock.json` with the published archive identity and
+   SHA-256, then update the expected major in `eng/Import-Protocol.ps1` and the
+   direct gRPC example's compatibility check. Regenerate through the existing
+   standard protobuf build; never edit generated C#.
+3. Update the fake server and manifest fixture to the selected major, retaining
+   a different major for `wrong-contract`. Run `eng/Test.ps1`; preserve presence,
+   call-order, cleanup, and no-replay assertions.
+4. Update the tutorial/setup version references, then validate each actual
+   example against the matching packaged runtime and record licensed observations
+   separately.
+
+The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/221-typed-runtime/docs/architecture/client-library-behavioral-contract.md)
+defines overload and lifecycle behavior. The tutorials perform sequential calls
+and already stop on failure; they should not gain an automatic retry loop or
+duplicate client startup/recovery implementations for this migration. Candidate
+client conformance belongs in the server/client repositories and does not prove
+that these published tutorial dependencies support major 2.
+
+On 2026-09-25, the unchanged published pins passed all 47 `eng/Test.ps1` scenarios
+again, including major-2 rejection for all four examples. This confirms the
+existing compatibility boundary; it is not a successful run against the new
+runtime. No SpatialAnalyzer or SDK was used.
+
 ## Licensed acceptance
 
 Live results are recorded separately from portable checks in the
