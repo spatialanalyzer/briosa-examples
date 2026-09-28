@@ -39,7 +39,7 @@ as checks of these simpler programs.
 
 ## Upcoming runtime migration
 
-The [server runtime redesign](https://github.com/spatialanalyzer/briosa/pull/226)
+The [server runtime redesign](https://github.com/spatialanalyzer/briosa/pull/227)
 advances the behavioral compatibility major to 2. It is unreleased. These
 tutorials still use published major-1 clients and protocol artifacts; do not point
 them at a major-2 candidate. The portable `wrong-contract` scenario already
@@ -61,7 +61,7 @@ When the coordinated server and language-client releases are published:
    example against the matching packaged runtime and record licensed observations
    separately.
 
-The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/221-typed-runtime/docs/architecture/client-library-behavioral-contract.md)
+The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/221-integrated-redesign/docs/architecture/client-library-behavioral-contract.md)
 defines overload and lifecycle behavior. The tutorials perform sequential calls
 and already stop on failure; they should not gain an automatic retry loop or
 duplicate client startup/recovery implementations for this migration. Candidate
@@ -72,6 +72,27 @@ On 2026-09-25, the unchanged published pins passed all 47 `eng/Test.ps1` scenari
 again, including major-2 rejection for all four examples. This confirms the
 existing compatibility boundary; it is not a successful run against the new
 runtime. No SpatialAnalyzer or SDK was used.
+
+On 2026-09-28, an isolated source copy used explicit local test overrides for
+the frozen 2026 `0.9.0-dev.1` protocol artifact and the three `0.4.0` client
+package candidates. Its protocol SHA-256 was
+`177ed8b761d9a438809a344463ef8363adff4ae306f3d7e685e6b0d6f362f958`;
+the .NET, JavaScript, and Python package SHA-256 values were respectively
+`6d1607fe35941478f22d1ff6ec64cd3e1d2889032918bc93979bd39b9e1e707b`,
+`d1be2d811ba8e004d0abcbf5485cba2408d2a3123a26e14258bed8ce842603cb`,
+and `bc4a7b4bcc278b832a402fe4cca3df5dd02a37ab7c8553d0c9c0fdffce42ef36`.
+The test copy allowed prerelease server selection and switched the fake server's
+compatibility contract to major 2. Both C# builds, the TypeScript build, and
+all 47 portable scenarios passed, including direct gRPC, success, failure,
+unknown-outcome, and incompatible-major cases. This is candidate package
+validation with a fake server; it does not publish those packages or establish
+licensed SA behavior. The tutorial sources and published dependency pins are
+unchanged.
+
+**Release follow-up:** once the coordinated major-2 server, protocol, and client
+packages are published, update all three tutorial pins and lockfiles together,
+switch the checked-in fake server and raw gRPC contract to major 2, and rerun
+`eng/Test.ps1` plus the separate licensed example checks.
 
 ## Licensed acceptance
 
