@@ -61,7 +61,7 @@ When the coordinated server and language-client releases are published:
    example against the matching packaged runtime and record licensed observations
    separately.
 
-The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/221-integrated-redesign/docs/architecture/client-library-behavioral-contract.md)
+The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/a6f79e001163521e19778bd6d333eab17bf09624/docs/architecture/client-library-behavioral-contract.md)
 defines overload and lifecycle behavior. The tutorials perform sequential calls
 and already stop on failure; they should not gain an automatic retry loop or
 duplicate client startup/recovery implementations for this migration. Candidate
