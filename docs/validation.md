@@ -89,6 +89,13 @@ validation with a fake server; it does not publish those packages or establish
 licensed SA behavior. The tutorial sources and published dependency pins are
 unchanged.
 
+The later `0.9.0-dev.2` server candidate retains the same public protocol
+descriptors and compatibility major as `0.9.0-dev.1`. All six `0.4.0` client
+packages passed the new candidate's packaged conformance matrix, and the
+retained older clients were rejected as expected. The example-specific
+47-scenario run above remains the `0.9.0-dev.1` fake-server observation; these
+tutorials have not been rerun or repinned to `0.9.0-dev.2`.
+
 **Release follow-up:** once the coordinated major-2 server, protocol, and client
 packages are published, update all three tutorial pins and lockfiles together,
 switch the checked-in fake server and raw gRPC contract to major 2, and rerun
