@@ -6,7 +6,7 @@
         "type": "Direct",
         "requested": "[0.4.0, )",
         "resolved": "0.4.0",
-        "contentHash": "2N1tE11CPKkwFkF0Vrh1gjtuU1jDRMthAiyTGq1bQ0oUKu32M6Ojp0vlb3bUguBfUmSztQWy2PzWeBRtlqhcTA==",
+        "contentHash": "xEevzR1y7mJ6jAnbThT2kwhMsext1qntXrcDLmMkfYucxGXTr9rDxRby3VqB5MH8snLHCwdIUZXylCNwUyP9YQ==",
         "dependencies": {
           "Google.Protobuf": "3.31.1",
           "Grpc.Core.Api": "2.80.0",
