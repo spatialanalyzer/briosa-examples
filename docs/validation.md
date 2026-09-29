@@ -37,6 +37,70 @@ This evidence covers the tutorial rewrite in issue #7; the earlier workbench's
 report and bootstrap checks are retained in Git history rather than presented
 as checks of these simpler programs.
 
+## Upcoming runtime migration
+
+The [server runtime redesign](https://github.com/spatialanalyzer/briosa/pull/227)
+advances the behavioral compatibility major to 2. It is unreleased. These
+tutorials still use published major-1 clients and protocol artifacts; do not point
+them at a major-2 candidate. The portable `wrong-contract` scenario already
+advertises major 2 and checks rejection before SDK startup or MP calls for the
+language clients, and before MP calls for direct gRPC.
+
+When the coordinated server and language-client releases are published:
+
+1. Update all three client package pins and lockfiles together for the existing
+   exact SA target. Use their published compatible versions, not local candidates.
+2. Update `protocol/protocol.lock.json` with the published archive identity and
+   SHA-256, then update the expected major in `eng/Import-Protocol.ps1` and the
+   direct gRPC example's compatibility check. Regenerate through the existing
+   standard protobuf build; never edit generated C#.
+3. Update the fake server and manifest fixture to the selected major, retaining
+   a different major for `wrong-contract`. Run `eng/Test.ps1`; preserve presence,
+   call-order, cleanup, and no-replay assertions.
+4. Update the tutorial/setup version references, then validate each actual
+   example against the matching packaged runtime and record licensed observations
+   separately.
+
+The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/a6f79e001163521e19778bd6d333eab17bf09624/docs/architecture/client-library-behavioral-contract.md)
+defines overload and lifecycle behavior. The tutorials perform sequential calls
+and already stop on failure; they should not gain an automatic retry loop or
+duplicate client startup/recovery implementations for this migration. Candidate
+client conformance belongs in the server/client repositories and does not prove
+that these published tutorial dependencies support major 2.
+
+On 2026-09-25, the unchanged published pins passed all 47 `eng/Test.ps1` scenarios
+again, including major-2 rejection for all four examples. This confirms the
+existing compatibility boundary; it is not a successful run against the new
+runtime. No SpatialAnalyzer or SDK was used.
+
+On 2026-09-28, an isolated source copy used explicit local test overrides for
+the frozen 2026 `0.9.0-dev.1` protocol artifact and the three `0.4.0` client
+package candidates. Its protocol SHA-256 was
+`177ed8b761d9a438809a344463ef8363adff4ae306f3d7e685e6b0d6f362f958`;
+the .NET, JavaScript, and Python package SHA-256 values were respectively
+`6d1607fe35941478f22d1ff6ec64cd3e1d2889032918bc93979bd39b9e1e707b`,
+`d1be2d811ba8e004d0abcbf5485cba2408d2a3123a26e14258bed8ce842603cb`,
+and `bc4a7b4bcc278b832a402fe4cca3df5dd02a37ab7c8553d0c9c0fdffce42ef36`.
+The test copy allowed prerelease server selection and switched the fake server's
+compatibility contract to major 2. Both C# builds, the TypeScript build, and
+all 47 portable scenarios passed, including direct gRPC, success, failure,
+unknown-outcome, and incompatible-major cases. This is candidate package
+validation with a fake server; it does not publish those packages or establish
+licensed SA behavior. The tutorial sources and published dependency pins are
+unchanged.
+
+The later `0.9.0-dev.2` server candidate retains the same public protocol
+descriptors and compatibility major as `0.9.0-dev.1`. All six `0.4.0` client
+packages passed the new candidate's packaged conformance matrix, and the
+retained older clients were rejected as expected. The example-specific
+47-scenario run above remains the `0.9.0-dev.1` fake-server observation; these
+tutorials have not been rerun or repinned to `0.9.0-dev.2`.
+
+**Release follow-up:** once the coordinated major-2 server, protocol, and client
+packages are published, update all three tutorial pins and lockfiles together,
+switch the checked-in fake server and raw gRPC contract to major 2, and rerun
+`eng/Test.ps1` plus the separate licensed example checks.
+
 ## Licensed acceptance
 
 Live results are recorded separately from portable checks in the
