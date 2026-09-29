@@ -25,7 +25,7 @@ await app.RunAsync();
 sealed class FakeData
 {
     public string Case { get; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_CASE") ?? "ok";
-    public string Version => Case == "legacy" ? "0.6.1" : Case == "compatible-newer" ? "0.7.1" : "0.7.0";
+    public string Version => Case == "legacy" ? "0.6.1" : Case == "compatible-newer" ? "0.9.1" : "0.9.0";
     public string SourceRevision => Case == "legacy" ? "32a3b56ba4ae31ea5ec6ec3b2aa051eb61c866aa" : new string('a', 40);
     public bool Started { get; set; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_EXTERNAL") == "1";
     public bool Ready { get; set; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_EXTERNAL") == "1" && Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_CASE") != "disconnected";
@@ -89,7 +89,7 @@ sealed class Discovery(FakeData data) : DiscoveryService.DiscoveryServiceBase
             ProtocolPackage = "briosa",
             SpatialAnalyzerTarget = data.Case == "wrong-target" ? "2024.1.0508.5" : "2026.1.0529.7"
         },
-        Compatibility = data.Case == "legacy" ? null : new CompatibilityContract { Major = data.Case == "wrong-contract" ? 2u : 1u, Revision = 0 },
+        Compatibility = data.Case == "legacy" ? null : new CompatibilityContract { Major = data.Case == "wrong-contract" ? 1u : 2u, Revision = 0 },
         ReadyForMp = data.Ready,
         TargetIsolationMode = TargetIsolationMode.SingleTenant,
         WorkerState = data.Ready ? WorkerRuntimeState.Ready : WorkerRuntimeState.Stopped,
