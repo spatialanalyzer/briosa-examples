@@ -33,7 +33,7 @@ The .NET, TypeScript, and Python examples start their own Briosa server, connect
 to the already-open SA application, and clean up when finished. Stop any SDK
 session you started in Control Center before running one of these examples.
 
-Server 0.7.0 verifies the activated SDK version, but the connected SA application
+Server 0.9.0 verifies the activated SDK version, but the connected SA application
 still needs operator-provided version evidence. After checking the running SA
 version and SDK communication ownership, set these **in the PowerShell terminal
 where you will run the example**:

@@ -20,7 +20,7 @@ var analysis = new AnalysisOperations.AnalysisOperationsClient(channel);
 var construction = new ConstructionOperations.ConstructionOperationsClient(channel);
 
 var info = await discovery.GetServerInfoAsync(new(), deadline: DateTime.UtcNow.AddSeconds(10));
-if (info.Version?.SpatialAnalyzerTarget != "2026.1.0529.7" || info.Compatibility?.Major != 1 || !info.ReadyForMp)
+if (info.Version?.SpatialAnalyzerTarget != "2026.1.0529.7" || info.Compatibility?.Major != 2 || !info.ReadyForMp)
     throw new InvalidOperationException("Connect a compatible SA 2026 server in Control Center first.");
 
 // These are generated protobuf types; this project uses no Briosa client package.

@@ -64,11 +64,11 @@ def main():
     (payload / "Briosa.Worker.exe").write_bytes(b"Test placeholder; never executed.")
     (payload / "manifest.json").write_text(json.dumps({
         "schemaVersion": 3,
-        "artifactName": "briosa-0.7.0-sa-2026.1.0529.7-win-x64",
-        "briosaVersion": "0.7.0", "sourceRevision": "a" * 40,
+        "artifactName": "briosa-0.9.0-sa-2026.1.0529.7-win-x64",
+        "briosaVersion": "0.9.0", "sourceRevision": "a" * 40,
         "spatialAnalyzerTarget": "2026.1.0529.7", "runtimeIdentifier": "win-x64",
         "protocolPackage": "briosa", "spatialAnalyzerBundled": False,
-        "compatibility": {"major": 1, "revision": 0},
+        "compatibility": {"major": 2, "revision": 0},
     }), encoding="utf-8")
     server_path = executable.as_posix()
     with socket.socket() as sock:
