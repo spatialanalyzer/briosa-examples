@@ -25,7 +25,7 @@ await app.RunAsync();
 sealed class FakeData
 {
     public string Case { get; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_CASE") ?? "ok";
-    public string Version => Case == "legacy" ? "0.6.1" : Case == "compatible-newer" ? "0.9.1" : "0.9.0";
+    public string Version => Case == "legacy" ? "0.6.1" : Case == "compatible-newer" ? "0.10.1" : "0.10.0";
     public string SourceRevision => Case == "legacy" ? "32a3b56ba4ae31ea5ec6ec3b2aa051eb61c866aa" : new string('a', 40);
     public bool Started { get; set; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_EXTERNAL") == "1";
     public bool Ready { get; set; } = Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_EXTERNAL") == "1" && Environment.GetEnvironmentVariable("BRIOSA_EXAMPLE_TEST_CASE") != "disconnected";
@@ -89,7 +89,7 @@ sealed class Discovery(FakeData data) : DiscoveryService.DiscoveryServiceBase
             ProtocolPackage = "briosa",
             SpatialAnalyzerTarget = data.Case == "wrong-target" ? "2024.1.0508.5" : "2026.1.0529.7"
         },
-        Compatibility = data.Case == "legacy" ? null : new CompatibilityContract { Major = data.Case == "wrong-contract" ? 1u : 2u, Revision = 0 },
+        Compatibility = data.Case == "legacy" ? null : new CompatibilityContract { Major = data.Case == "wrong-contract" ? 2u : 3u, Revision = 0 },
         ReadyForMp = data.Ready,
         TargetIsolationMode = TargetIsolationMode.SingleTenant,
         WorkerState = data.Ready ? WorkerRuntimeState.Ready : WorkerRuntimeState.Stopped,
@@ -100,7 +100,9 @@ sealed class Discovery(FakeData data) : DiscoveryService.DiscoveryServiceBase
     });
     public override Task<ListCapabilitiesResponse> ListCapabilities(ListCapabilitiesRequest request, ServerCallContext context)
     {
-        var response = new ListCapabilitiesResponse { SpatialAnalyzerTarget = "2026.1.0529.7", ProtocolPackage = "briosa" };
+        // Shaped like the packaged standard profile. Each row copies the real server's
+        // reviewed classification: no risk flags, quick, no recorded validation gap.
+        var response = new ListCapabilitiesResponse { SpatialAnalyzerTarget = "2026.1.0529.7", ProtocolPackage = "briosa", AdmissionProfile = "standard", PolicyFingerprint = "sha256:" + new string('c', 64) };
         var ids = new[] { "utility_operations.get_active_units", "utility_operations.get_working_frame_properties", "analysis_operations.get_point_coordinate", "analysis_operations.get_point_to_point_distance", "construction_operations.construct_collection", "construction_operations.construct_point_in_working_coordinates" };
         string[] methods = ["/briosa.UtilityOperations/GetActiveUnits", "/briosa.UtilityOperations/GetWorkingFrameProperties",
             "/briosa.AnalysisOperations/GetPointCoordinate", "/briosa.AnalysisOperations/GetPointToPointDistance",
@@ -109,7 +111,16 @@ sealed class Discovery(FakeData data) : DiscoveryService.DiscoveryServiceBase
         {
             if (data.Case == "unsupported" && i == 2) continue;
             var split = methods[i].Split('/');
-            response.Operations.Add(new OperationCapability { OperationId = ids[i], GrpcService = split[1], Rpc = split[2], FullyQualifiedMethod = methods[i], Effect = i >= 4 ? OperationEffect.Mutating : OperationEffect.ReadOnly, ReplaySafety = ReplaySafety.Unknown, ExecutionScope = i >= 4 ? OperationExecutionScope.GlobalStateMutation : OperationExecutionScope.GlobalStateRead });
+            response.Operations.Add(new OperationCapability
+            {
+                OperationId = ids[i], GrpcService = split[1], Rpc = split[2], FullyQualifiedMethod = methods[i],
+                Effect = i >= 4 ? OperationEffect.Mutating : OperationEffect.ReadOnly,
+                ReplaySafety = i >= 4 ? ReplaySafety.Unsafe : ReplaySafety.Safe,
+                ExecutionScope = i >= 4 ? OperationExecutionScope.GlobalStateMutation : OperationExecutionScope.GlobalStateRead,
+                DurationClass = OperationDurationClass.Quick,
+                ValidationStatus = OperationValidationStatus.NoRecordedGap,
+                Admission = OperationAdmission.Admitted
+            });
         }
         return Task.FromResult(response);
     }
