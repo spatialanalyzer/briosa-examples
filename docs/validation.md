@@ -14,7 +14,7 @@ and Python 3.12:
 ./eng/Test.ps1
 ```
 
-This verifies the published protocol archive, restores locked packages, and
+This verifies the hash-pinned protocol archive, restores locked packages, and
 builds the actual examples. The test harness makes temporary source copies
 with only the server selection/endpoint changed to its isolated test server.
 It then runs those programs through collection and point construction, successful
@@ -37,23 +37,68 @@ This evidence covers the tutorial rewrite in issue #7; the earlier workbench's
 report and bootstrap checks are retained in Git history rather than presented
 as checks of these simpler programs.
 
-## Runtime redesign release
+## Contract major 3 release
 
-These tutorials pin the published `0.4.0` .NET, Python, and JavaScript clients
-for SA 2026.1.0529.7 and the `0.9.0` protocol archive. They require behavioral
-compatibility major 2. The direct gRPC example verifies that contract before MP
+These tutorials use the `0.5.0` .NET, Python, and JavaScript clients for
+SA 2026.1.0529.7 and the Server `0.10.0` protocol. They require behavioral
+compatibility major 3. The direct gRPC example verifies that contract before MP
 work; the language clients perform their own server selection and compatibility
-checks. The `wrong-contract` scenario advertises major 1 and verifies rejection.
+checks. The `wrong-contract` scenario advertises major 2 and verifies rejection.
+The test server also reports the major-3 admission profile and each operation's
+reviewed classification, copied from the real server's `standard` profile. The
+clients read both at startup.
 
-On 2026-09-29, `eng/Test.ps1` passed all **47 scenarios** with these release pins
-and the SHA-256-verified protocol archive. Both C# builds and the TypeScript
-build completed without warnings or errors. The scenarios cover construction,
-reads, units, failure and unknown outcomes, incompatible targets/contracts,
-disconnected startup, cleanup, and no replay. This is portable fake-server
-evidence; licensed execution against the final packaged server has not yet been
-recorded for these updated tutorial pins.
+### Candidate phase
 
-The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/v0.9.0/docs/architecture/client-library-behavioral-contract.md)
+Until Server 0.10.0 and the 0.5.0 clients are published, the pins point at
+unpublished inputs: the frozen protocol checkpoint `0.10.0-dev.1` and the client
+candidates of [briosa#363](https://github.com/spatialanalyzer/briosa/pull/363).
+None of them is published, and no binary is committed. Build them first:
+
+```powershell
+./eng/Build-Candidates.ps1
+./eng/Test.ps1
+```
+
+The script clones each pinned commit and builds it into `artifacts/`, the way
+the client CI rebuilds the checkpoint and briosa's retained-client gate packs a
+source candidate. It also needs Git, buf 1.72.0, and the .NET SDK that
+briosa-dotnet pins (10.0.302); pass `-Dotnet` when the default `dotnet` lacks
+it. `nuget.config` maps only `Briosa.2026.1.0529.7` to the local feed and keeps
+that package out of the user-wide NuGet cache. The TypeScript tutorial installs
+the npm tarball by path, and the Python requirements add the wheel folder with
+`--find-links`.
+
+| Input | Repository | Commit |
+| --- | --- | --- |
+| Protocol checkpoint `0.10.0-dev.1` | briosa | `2960705eb3152646513dca2b5d2043cd7cfffb75` |
+| .NET client 0.5.0 | briosa-dotnet ([#46](https://github.com/spatialanalyzer/briosa-dotnet/pull/46)) | `3823369030dc0a286d698a4795b9442b4c7f9bf1` |
+| JavaScript client 0.5.0 | briosa-js ([#46](https://github.com/spatialanalyzer/briosa-js/pull/46)) | `feda30f3bd0bdae8cf9b02ae307146de259e2167` |
+| Python client 0.5.0 | briosa-py ([#46](https://github.com/spatialanalyzer/briosa-py/pull/46)) | `6a04ff934d554be0767bea997f9517676674b8a4` |
+
+The 2026-11-09 run used these files:
+
+```text
+0bf2b7f216a8d1040bd416b4566cf6c53a13f398ec81657dc91b674e0f45cae3  briosa-protocol-0.10.0-dev.1-sa-2026.1.0529.7.zip
+6a24be5b3582102f3365f33daa1a3d487f7bed8f0f5d8012f8b394cfb817e9fe  Briosa.2026.1.0529.7.0.5.0.nupkg
+aa3909ec164f5276157c86eeef422bf5dfd34018f6bd7e01c159103e79ca5cf7  spatialanalyzer-briosa-2026.1.0529.7-0.5.0.tgz
+e63f83524a2d6968af032075587cebdbdcde90110c3958395c230bc6403f2123  briosa_2026_1_0529_7-0.5.0-py3-none-any.whl
+```
+
+The archive matches the checkpoint recorded in briosa#363. The archive, the
+tarball, and the wheel rebuild byte for byte. NuGet packing writes timestamps
+and a random part name, so a rebuilt .NET candidate has a new hash: re-lock the
+.NET tutorial once with
+`dotnet restore point-inspection/dotnet/PointInspection.csproj --force-evaluate`.
+
+On 2026-11-09, `eng/Test.ps1` passed all **47 scenarios** with these candidate
+pins and the checkpoint archive, verified against the checkpoint SHA-256. All
+three C# builds and the TypeScript build completed without warnings or errors.
+This is portable fake-server evidence for unpublished candidates. The published
+0.5.0 packages and the 0.10.0 release archive still need their own run, and
+licensed execution has not been recorded for these pins.
+
+The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/docs/architecture/client-library-behavioral-contract.md)
 defines overload and lifecycle behavior. Tutorial calls remain sequential and
 stop on failure; they do not automatically retry an uncertain write.
 
