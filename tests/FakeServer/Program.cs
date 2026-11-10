@@ -194,7 +194,7 @@ sealed class Analysis(FakeData data) : AnalysisOperations.AnalysisOperationsBase
         data.RequireReady(); data.Log("distance");
         var a = data.Point(request.FirstPoint); var b = data.Point(request.SecondPoint);
         var x = b.X - a.X; var y = b.Y - a.Y; var z = b.Z - a.Z;
-        return Task.FromResult(new GetPointToPointDistanceResult
+        var response = new GetPointToPointDistanceResult
         {
             XValue = x,
             YValue = y,
@@ -202,7 +202,14 @@ sealed class Analysis(FakeData data) : AnalysisOperations.AnalysisOperationsBase
             VectorRepresentation = new() { X = x, Y = y, Z = z },
             Magnitude = Math.Sqrt(x * x + y * y + z * z),
             Execution = FakeData.Success("vector_representation", "x_value", "y_value", "z_value", "magnitude")
-        });
+        };
+        // MP code 4: OK with its outputs, reported as a partial success (contract major 3).
+        if (data.Case == "partial-success")
+        {
+            response.Execution.State = MpExecutionState.PartialSuccess;
+            response.Execution.MpResultCode = 4;
+        }
+        return Task.FromResult(response);
     }
 }
 

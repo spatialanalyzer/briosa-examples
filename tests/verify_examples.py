@@ -105,9 +105,9 @@ def main():
     collections = {"grpc": "BriosaGrpcDemo", "dotnet": "BriosaDotnetDemo",
                    "typescript": "BriosaTypeScriptDemo", "python": "BriosaPythonDemo"}
     for name, command in commands.items():
-        cases = ["ok", "inches", "wrong-target", "wrong-contract", "disconnected",
-                 "missing-point", "unknown", "missing-output", "collection-failure",
-                 "write-unknown", "second-write-failure"]
+        cases = ["ok", "inches", "partial-success", "wrong-target", "wrong-contract",
+                 "disconnected", "missing-point", "unknown", "missing-output",
+                 "collection-failure", "write-unknown", "second-write-failure"]
         if name == "grpc":
             cases += ["mp-result-failure", "deadline", "write-result-failure"]
         for case in cases:
@@ -133,10 +133,13 @@ def main():
                                         text=True, timeout=50)
                 (evidence / f"{name}-{case}.output").write_text(result.stdout + result.stderr, encoding="utf-8")
                 calls = calls_path.read_text().splitlines() if calls_path.exists() else []
-                if case in ("ok", "inches"):
+                if case in ("ok", "inches", "partial-success"):
                     unit = "Inches" if case == "inches" else "Millimeters"
                     expected = [f"Length unit: {unit}", "P1: (0.000, 0.000, 0.000)",
                                 "P2: (3.000, 4.000, 0.000)", f"Distance: 5.000 {unit}"]
+                    if case == "partial-success" and name == "grpc":
+                        # The clients return MP code 4 as a success; the raw example reports it.
+                        expected.insert(3, "SA reported a partial success (MP code 4).")
                     assert result.returncode == 0, result.stderr
                     assert result.stdout.splitlines() == expected, result.stdout
                     assert [call for call in calls if not call.startswith("sdk.")] == ["units", "collection.create", "point.create", "point.create", "point", "point", "distance"], calls

@@ -18,9 +18,9 @@ This verifies the hash-pinned protocol archive, restores locked packages, and
 builds the actual examples. The test harness makes temporary source copies
 with only the server selection/endpoint changed to its isolated test server.
 It then runs those programs through collection and point construction, successful
-reads, different units, failed or incomplete calls, incompatible targets/contracts,
-and disconnected startup. The test server begins without points, so the programs
-must construct them before they can read them.
+reads, different units, a partial success (MP code 4), failed or incomplete calls,
+incompatible targets/contracts, and disconnected startup. The test server begins
+without points, so the programs must construct them before they can read them.
 
 The harness verifies output values and call order, checks that failed operations
 are not replayed, checks client SDK cleanup, and checks that raw gRPC leaves the
@@ -76,7 +76,7 @@ the npm tarball by path, and the Python requirements add the wheel folder with
 | JavaScript client 0.5.0 | briosa-js ([#46](https://github.com/spatialanalyzer/briosa-js/pull/46)) | `feda30f3bd0bdae8cf9b02ae307146de259e2167` |
 | Python client 0.5.0 | briosa-py ([#46](https://github.com/spatialanalyzer/briosa-py/pull/46)) | `6a04ff934d554be0767bea997f9517676674b8a4` |
 
-The 2026-11-09 run used these files:
+The 2026-11-10 run used these files:
 
 ```text
 0bf2b7f216a8d1040bd416b4566cf6c53a13f398ec81657dc91b674e0f45cae3  briosa-protocol-0.10.0-dev.1-sa-2026.1.0529.7.zip
@@ -91,9 +91,12 @@ and a random part name, so a rebuilt .NET candidate has a new hash: re-lock the
 .NET tutorial once with
 `dotnet restore point-inspection/dotnet/PointInspection.csproj --force-evaluate`.
 
-On 2026-11-09, `eng/Test.ps1` passed all **47 scenarios** with these candidate
-pins and the checkpoint archive, verified against the checkpoint SHA-256. All
-three C# builds and the TypeScript build completed without warnings or errors.
+On 2026-11-10, `eng/Test.ps1` passed all **51 scenarios** with these candidate
+pins and the checkpoint archive, verified against the checkpoint SHA-256. The
+`partial-success` case, new with contract major 3, answers the distance read
+with MP code 4: the clients return it as a success, and the raw gRPC example
+reports it and continues. All three C# builds and the TypeScript build completed
+without warnings or errors.
 This is portable fake-server evidence for unpublished candidates. The published
 0.5.0 packages and the 0.10.0 release archive still need their own run, and
 licensed execution has not been recorded for these pins.
