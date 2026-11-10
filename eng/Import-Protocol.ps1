@@ -6,7 +6,10 @@ $cache = Join-Path $repo 'artifacts'
 New-Item -ItemType Directory -Path $cache -Force | Out-Null
 if (!$ArchivePath) {
     $ArchivePath = Join-Path $cache $pin.file_name
-    if (!(Test-Path -LiteralPath $ArchivePath)) { Invoke-WebRequest $pin.url -OutFile $ArchivePath }
+    if (!(Test-Path -LiteralPath $ArchivePath)) {
+        if (!$pin.url) { throw "Protocol $($pin.version) has no download URL. Place the archive at $ArchivePath or pass -ArchivePath." }
+        Invoke-WebRequest $pin.url -OutFile $ArchivePath
+    }
 }
 if ((Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.sha256) {
     throw 'Protocol archive hash mismatch.'
@@ -17,7 +20,7 @@ $package = Join-Path $extracted ([IO.Path]::GetFileNameWithoutExtension($pin.fil
 $manifest = Get-Content (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.briosa_version -ne $pin.version -or $manifest.source_revision -ne $pin.source_revision -or
     $manifest.spatial_analyzer_target -ne $pin.sa_target) { throw 'Protocol identity mismatch.' }
-if ($manifest.schema_version -ne 3 -or $manifest.compatibility.major -ne 2 -or $manifest.compatibility.revision -lt 0) {
+if ($manifest.schema_version -ne 3 -or $manifest.compatibility.major -ne 3 -or $manifest.compatibility.revision -lt 0) {
     throw 'A contract-aware protocol artifact is required.'
 }
 foreach ($entry in $manifest.files) {

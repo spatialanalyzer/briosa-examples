@@ -4,9 +4,9 @@
     "net10.0": {
       "Briosa.2026.1.0529.7": {
         "type": "Direct",
-        "requested": "[0.4.0, )",
-        "resolved": "0.4.0",
-        "contentHash": "xEevzR1y7mJ6jAnbThT2kwhMsext1qntXrcDLmMkfYucxGXTr9rDxRby3VqB5MH8snLHCwdIUZXylCNwUyP9YQ==",
+        "requested": "[0.5.0, )",
+        "resolved": "0.5.0",
+        "contentHash": "mlsRxWiwt5NaUaWseb6+Aqmt5rIepqDIiDGzFKXswLRGqaGBGuJZdHWjaYcb/4ywZa4qzqSgmhDkmX7QkiEe0Q==",
         "dependencies": {
           "Google.Protobuf": "3.31.1",
           "Grpc.Core.Api": "2.80.0",
