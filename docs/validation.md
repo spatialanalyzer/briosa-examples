@@ -48,58 +48,55 @@ The test server also reports the major-3 admission profile and each operation's
 reviewed classification, copied from the real server's `standard` profile. The
 clients read both at startup.
 
-### Candidate phase
+### Published clients and the protocol checkpoint
 
-Until Server 0.10.0 and the 0.5.0 clients are published, the pins point at
-unpublished inputs: the frozen protocol checkpoint `0.10.0-dev.1` and the client
-candidates of [briosa#363](https://github.com/spatialanalyzer/briosa/pull/363).
-None of them is published, and no binary is committed. Build them first:
+The language tutorials pin the published 0.5.0 packages: NuGet
+`Briosa.2026.1.0529.7`, npm `@spatialanalyzer/briosa-2026.1.0529.7` (installed
+as `briosa`), and PyPI `briosa-2026-1-0529-7`. Server 0.10.0 is not released
+yet, so the protocol pin is still the frozen checkpoint `0.10.0-dev.1` of
+[briosa#363](https://github.com/spatialanalyzer/briosa/pull/363), which has no
+download URL. Build it first:
 
 ```powershell
-./eng/Build-Candidates.ps1
+./eng/Build-ProtocolCheckpoint.ps1
 ./eng/Test.ps1
 ```
 
-The script clones each pinned commit and builds it into `artifacts/`, the way
-the client CI rebuilds the checkpoint and briosa's retained-client gate packs a
-source candidate. It also needs Git, buf 1.72.0, and the .NET SDK that
-briosa-dotnet pins (10.0.302); pass `-Dotnet` when the default `dotnet` lacks
-it. `nuget.config` maps only `Briosa.2026.1.0529.7` to the local feed and keeps
-that package out of the user-wide NuGet cache. The TypeScript tutorial installs
-the npm tarball by path, and the Python requirements add the wheel folder with
-`--find-links`.
+The script clones briosa at the pinned source commit and builds the archive
+into `artifacts/`, the way the client CI rebuilds the checkpoint. It needs Git
+and buf 1.72.0. `eng/Import-Protocol.ps1` then verifies the archive against the
+pinned SHA-256.
 
-| Input | Repository | Commit |
+| Input | Built from | Download |
 | --- | --- | --- |
-| Protocol checkpoint `0.10.0-dev.1` | briosa | `2960705eb3152646513dca2b5d2043cd7cfffb75` |
-| .NET client 0.5.0 | briosa-dotnet ([#46](https://github.com/spatialanalyzer/briosa-dotnet/pull/46)) | `3823369030dc0a286d698a4795b9442b4c7f9bf1` |
-| JavaScript client 0.5.0 | briosa-js ([#46](https://github.com/spatialanalyzer/briosa-js/pull/46)) | `feda30f3bd0bdae8cf9b02ae307146de259e2167` |
-| Python client 0.5.0 | briosa-py ([#46](https://github.com/spatialanalyzer/briosa-py/pull/46)) | `6a04ff934d554be0767bea997f9517676674b8a4` |
+| Protocol checkpoint `0.10.0-dev.1` | briosa `2960705eb3152646513dca2b5d2043cd7cfffb75` | None until the release |
+| .NET client 0.5.0 | briosa-dotnet `bc72244454c436441cabbaad1ae4e8ca519a5a9e` | [NuGet](https://api.nuget.org/v3-flatcontainer/briosa.2026.1.0529.7/0.5.0/briosa.2026.1.0529.7.0.5.0.nupkg) |
+| JavaScript client 0.5.0 | briosa-js `b94fce3f6e95b3e15f99f9d65f1710cc8c8d3119` | [npm](https://registry.npmjs.org/@spatialanalyzer/briosa-2026.1.0529.7/-/briosa-2026.1.0529.7-0.5.0.tgz) |
+| Python client 0.5.0 | briosa-py `cae6e535ebfd89fd6c4ba280c741ec5f7fd04a0d` | [PyPI](https://files.pythonhosted.org/packages/07/97/fbe56e4590c2af58291c8732cd3c4aca07de278a08c3726b75dc0b0f975e/briosa_2026_1_0529_7-0.5.0-py3-none-any.whl) |
 
-The 2026-11-10 run used these files:
+The 2026-11-20 run used these files:
 
 ```text
 0bf2b7f216a8d1040bd416b4566cf6c53a13f398ec81657dc91b674e0f45cae3  briosa-protocol-0.10.0-dev.1-sa-2026.1.0529.7.zip
-6a24be5b3582102f3365f33daa1a3d487f7bed8f0f5d8012f8b394cfb817e9fe  Briosa.2026.1.0529.7.0.5.0.nupkg
-aa3909ec164f5276157c86eeef422bf5dfd34018f6bd7e01c159103e79ca5cf7  spatialanalyzer-briosa-2026.1.0529.7-0.5.0.tgz
-e63f83524a2d6968af032075587cebdbdcde90110c3958395c230bc6403f2123  briosa_2026_1_0529_7-0.5.0-py3-none-any.whl
+adc0de5a274034d7bf393502095ed620a49e0e1a467b1263a86d192f47a38d29  briosa.2026.1.0529.7.0.5.0.nupkg
+7d0583ed9b6ec489d3f93af74df877a01856138913952e7e0ca098a3344105cd  briosa-2026.1.0529.7-0.5.0.tgz
+f2ecb2aaaf4d0b5de24910986f9d778453c982f5a82ae2031213b0d62edc6064  briosa_2026_1_0529_7-0.5.0-py3-none-any.whl
 ```
 
-The archive matches the checkpoint recorded in briosa#363. The archive, the
-tarball, and the wheel rebuild byte for byte. NuGet packing writes timestamps
-and a random part name, so a rebuilt .NET candidate has a new hash: re-lock the
-.NET tutorial once with
-`dotnet restore point-inspection/dotnet/PointInspection.csproj --force-evaluate`.
+The archive matches the checkpoint recorded in briosa#363. The three packages
+match the registry files and SHA-256 values that
+[briosa#381](https://github.com/spatialanalyzer/briosa/pull/381) pins in
+`compatibility/retained-clients.json`.
 
-On 2026-11-10, `eng/Test.ps1` passed all **51 scenarios** with these candidate
-pins and the checkpoint archive, verified against the checkpoint SHA-256. The
-`partial-success` case, new with contract major 3, answers the distance read
-with MP code 4: the clients return it as a success, and the raw gRPC example
-reports it and continues. All three C# builds and the TypeScript build completed
-without warnings or errors.
-This is portable fake-server evidence for unpublished candidates. The published
-0.5.0 packages and the 0.10.0 release archive still need their own run, and
-licensed execution has not been recorded for these pins.
+On 2026-11-20, `eng/Test.ps1` passed all **51 scenarios** with the published
+packages and the checkpoint archive. The `partial-success` case, new with
+contract major 3, answers the distance read with MP code 4: the clients return
+it as a success, and the raw gRPC example reports it and continues. All three C#
+builds and the TypeScript build completed without warnings or errors. This is
+portable fake-server evidence. The 0.10.0 release archive still needs its own
+run, and licensed execution has not been recorded for these pins. Earlier runs
+against source builds of the client pull requests are recorded in
+[briosa-examples#16](https://github.com/spatialanalyzer/briosa-examples/pull/16).
 
 The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/docs/architecture/client-library-behavioral-contract.md)
 defines overload and lifecycle behavior. Tutorial calls remain sequential and
