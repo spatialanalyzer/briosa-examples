@@ -25,9 +25,9 @@ them before they can read them.
 
 The harness verifies output values and call order, checks that failed operations
 are not replayed, checks client SDK cleanup, and checks that raw gRPC leaves the
-external server alive. For each failing case it also checks the error the program
-prints, so a generic exception or a different failure does not pass; see
-[what the test server simulates](#what-the-test-server-simulates).
+external server alive. For each failing case it also checks the uncaught error
+the program ends with, so a generic or wrapping exception or a different failure
+does not pass; see [what the harness checks](#what-the-harness-checks-in-a-failing-case).
 Test-only connection changes are saved with the evidence
 under `artifacts/test-*/`. The tutorial sources contain no test switch or
 synthetic measurement path. No real server distribution, SDK, or SA is launched.
@@ -91,15 +91,33 @@ The test server's other rejections (a call before readiness, an unexpected
 request, a repeated point write) are test assertions without a typed error, and
 no case expects them. There is no policy-denial case.
 
-For an operation failure, the .NET and Python clients print the operation,
-diagnostic code and gRPC status. The TypeScript client also prints the kind,
-execution disposition, recovery guidance, replay guidance, replay safety and MP
-details. The harness checks every one of those. The raw gRPC example does not
-decode the error trailer, so its check is the gRPC status and detail. For the
-other failing cases the harness checks the error type and message, which for
-the clients includes the diagnostic code. A
-generic exception, another error type or another diagnostic code fails the case
-in every language; another kind, disposition or guidance fails it in TypeScript.
+### What the harness checks in a failing case
+
+Each failing program must end with an uncaught error. The harness reads the
+report its runtime prints on stderr and compares its structure, not a substring
+anywhere in the output. The outermost, uncaught error must be the expected one:
+a program that wraps it in another exception fails, as does another error type,
+message, gRPC status or printed field value.
+
+For an operation failure (`missing-point`, `unknown`, `collection-failure`,
+`second-write-failure`, `write-unknown`), these are the fields each tutorial
+prints and the harness checks. Nothing a tutorial does not print is checked.
+
+| Tutorial | What the harness compares | Checked | Not printed, so not checked |
+| --- | --- | --- | --- |
+| .NET client | The first line of the unhandled-exception report and each `--->` inner exception line | `BriosaOperationException` with the operation ID and diagnostic code in its message, and exactly one inner exception: the `RpcException` with the gRPC status code and detail | Kind, execution disposition, recovery guidance, replay guidance, replay safety, MP details, worker generation |
+| Python client | Every exception in the traceback and the chain marker between them | The last exception is `BriosaOperationError` with the operation ID and diagnostic code, raised directly from an `AioRpcError` with the gRPC status code and details, and the traceback holds no other exception. The `AioRpcError`'s `debug_error_string` line, gRPC's own diagnostic, is skipped | Kind, execution disposition, recovery guidance, replay guidance, replay safety, MP details, worker generation |
+| TypeScript client | The header line of Node's uncaught-error report and the error's printed properties, exactly, ignoring only whitespace | `BriosaOperationError` with the diagnostic code in its message, and exactly these properties in this order: operation ID, kind, diagnostic code, execution disposition, recovery guidance, replay guidance, replay safety and MP details. The MP details are the state, the exact MP result code, and each retrieval entry's field name, state and diagnostic code, in order; for a worker failure they are `null` | gRPC status code and detail, worker generation |
+| Raw gRPC example | The first line of the unhandled-exception report and each `--->` inner exception line | Exactly one exception: the `RpcException` with the gRPC status code and detail | Every `OperationError` field: the example does not decode the error trailer |
+
+For the other failing cases the harness compares the same structure with one
+expected error: its type and message, which for the clients includes the
+diagnostic code, and for TypeScript a single `diagnosticCode` property. The
+.NET and raw gRPC errors must have no inner exception, and the Python error must
+be the only exception in the traceback. In the raw gRPC `deadline` case the error
+is an `RpcException` with `DeadlineExceeded` and the empty detail Grpc.Net.Client
+reports when the caller's deadline ends the call.
+
 The `unknown` read carries `MayReplay`, and every program still stops without
 repeating it.
 
