@@ -109,6 +109,8 @@ sealed class FakeData
     // The fake's other rejections (here and the InvalidArgument, AlreadyExists and generation
     // checks below) are test assertions with no OperationError trailer and no Server 0.10.0
     // counterpart. No scenario expects them: they make an unexpected request fail the run.
+    // Each MP handler logs its call before this check, so the harness sees an MP attempted
+    // before readiness.
     public void RequireReady() { if (!Ready) throw new RpcException(new Status(StatusCode.FailedPrecondition, "Not ready")); }
     public Point Point(PointName name, FakeOperation operation)
     {
@@ -203,7 +205,7 @@ sealed class Utility(FakeData data) : UtilityOperations.UtilityOperationsBase
 {
     public override Task<GetActiveUnitsResult> GetActiveUnits(GetActiveUnitsRequest request, ServerCallContext context)
     {
-        data.RequireReady(); data.Log("units");
+        data.Log("units"); data.RequireReady();
         return Task.FromResult(new GetActiveUnitsResult { Length = data.Case == "inches" ? "Inches" : "Millimeters", Angular = "degrees", Temperature = "Celsius", Execution = FakeData.Success("length", "angular", "temperature") });
     }
 
@@ -212,7 +214,7 @@ sealed class Analysis(FakeData data) : AnalysisOperations.AnalysisOperationsBase
 {
     public override async Task<GetPointCoordinateResult> GetPointCoordinate(GetPointCoordinateRequest request, ServerCallContext context)
     {
-        data.RequireReady(); data.Log("point");
+        data.Log("point"); data.RequireReady();
         switch (data.Case)
         {
             case "mp-failure":
@@ -245,7 +247,7 @@ sealed class Analysis(FakeData data) : AnalysisOperations.AnalysisOperationsBase
     }
     public override Task<GetPointToPointDistanceResult> GetPointToPointDistance(GetPointToPointDistanceRequest request, ServerCallContext context)
     {
-        data.RequireReady(); data.Log("distance");
+        data.Log("distance"); data.RequireReady();
         var a = data.Point(request.FirstPoint, FakeOperation.GetPointToPointDistance);
         var b = data.Point(request.SecondPoint, FakeOperation.GetPointToPointDistance);
         var x = b.X - a.X; var y = b.Y - a.Y; var z = b.Z - a.Z;
@@ -272,7 +274,7 @@ sealed class Construction(FakeData data) : ConstructionOperations.ConstructionOp
 {
     public override Task<ConstructCollectionResult> ConstructCollection(ConstructCollectionRequest request, ServerCallContext context)
     {
-        data.RequireReady(); data.Log("collection.create");
+        data.Log("collection.create"); data.RequireReady();
         if (data.Case == "collection-failure")
             throw FakeData.MpFailure(FakeOperation.ConstructCollection);
         if (request.CollectionName?.Name != data.ExpectedCollection || data.Collection is not null ||
@@ -284,7 +286,7 @@ sealed class Construction(FakeData data) : ConstructionOperations.ConstructionOp
 
     public override Task<ConstructPointInWorkingCoordinatesResult> ConstructPointInWorkingCoordinates(ConstructPointInWorkingCoordinatesRequest request, ServerCallContext context)
     {
-        data.RequireReady(); data.Log("point.create");
+        data.Log("point.create"); data.RequireReady();
         var name = request.PointName;
         var xyz = request.WorkingCoordinates;
         if (name is null || name.CollectionName != data.Collection || name.GroupName != "Points" ||

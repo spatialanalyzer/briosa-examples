@@ -89,7 +89,10 @@ whereas Server 0.10.0 also retires the worker generation until an explicit
 recovery request; the tutorials stop at the failure, so no case reads that state.
 The test server's other rejections (a call before readiness, an unexpected
 request, a repeated point write) are test assertions without a typed error, and
-no case expects them. There is no policy-denial case.
+no case expects them. There is no policy-denial case. The test server logs each
+MP call before its readiness check, and in the `wrong-target`, `wrong-contract`
+and `disconnected` cases the harness fails if a program attempted any MP
+operation at all.
 
 ### What the harness checks in a failing case
 

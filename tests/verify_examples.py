@@ -304,8 +304,8 @@ def main():
                     assert error == expected, (f"{name}/{case} did not end with the expected uncaught error.\n"
                                                f"Expected: {expected!r}\nFound: {error!r}\n{result.stderr}")
                     if case in ("wrong-target", "wrong-contract", "disconnected"):
-                        assert "units" not in calls and "point" not in calls, calls
-                        assert not any(call.endswith(".create") for call in calls), calls
+                        # The test server logs every MP call it receives, even before readiness.
+                        assert [call for call in calls if not call.startswith("sdk.")] == [], f"An MP was attempted: {calls}"
                     elif case in ("collection-failure", "write-unknown", "second-write-failure", "write-result-failure"):
                         assert calls.count("collection.create") == 1, calls
                         expected_writes = 0 if case == "collection-failure" else 2 if case == "second-write-failure" else 1
