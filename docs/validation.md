@@ -109,16 +109,26 @@ Everything the tutorials consume is a published release file. The language
 tutorials pin the 0.5.0 packages: NuGet `Briosa.2026.1.0529.7`, npm
 `@spatialanalyzer/briosa-2026.1.0529.7` (installed as `briosa`), and PyPI
 `briosa-2026-1-0529-7`. `protocol/protocol.lock.json` pins the Server 0.10.0
-protocol archive. Unless `artifacts/` already holds it, `eng/Import-Protocol.ps1`
-downloads that archive from the GitHub release. Before anything is built, it
+protocol archive. `eng/Import-Protocol.ps1` first refuses an `artifacts/` that is
+a link. Then, unless `artifacts/` already holds the archive, it downloads it from
+the GitHub release. Before anything is built, it
 checks the archive's SHA-256, the manifest's version, source revision, SA target
 and contract major 3, and the SHA-256 of every file the manifest lists. It
 empties `artifacts/protocol-package` and `artifacts/protocol` before it extracts
 and copies, and then checks that `artifacts/protocol` holds exactly the
 manifest's proto files, so no file from an earlier import remains. It clears only
-those two folders, and refuses if either one or `artifacts/` is a link.
+those two folders, and refuses if either one is a link.
+
+The import cannot delete its own archive. It holds the archive open for the
+whole import, shared only for reading, and hashes and extracts it through that
+handle, so no path can delete, rename or change it meanwhile. Before it clears
+either folder, it compares the real location Windows reports for the open
+archive and for each folder, with every junction, symbolic link, short name and
+substituted drive resolved, and refuses an archive inside either folder.
 `eng/Test.ps1` repeats the import in a scratch copy holding planted stale files
-and fails if one survives.
+and fails if one survives. It then puts the archive inside each folder, passes
+it through a directory junction, and fails unless the import refuses it before
+clearing either folder and the archive is still there.
 
 | Input | Built from | Download |
 | --- | --- | --- |

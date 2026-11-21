@@ -18,6 +18,27 @@ try {
     foreach ($path in $stale) {
         if (Test-Path -LiteralPath (Join-Path $check $path)) { throw "Protocol import kept a stale file: $path" }
     }
+    # An archive inside a folder the import clears must be refused before either folder is
+    # cleared, also when its path runs through a link. A directory junction needs no elevation.
+    $markers = @('artifacts/protocol/refused-import.marker', 'artifacts/protocol-package/refused-import.marker')
+    foreach ($path in $markers) { New-Item -ItemType File -Path (Join-Path $check $path) | Out-Null }
+    foreach ($name in 'protocol-package', 'protocol') {
+        $inside = Join-Path $check "artifacts/$name/$($pin.file_name)"
+        Copy-Item -LiteralPath "artifacts/$($pin.file_name)" -Destination $inside
+        $alias = Join-Path $check "alias-$name"
+        New-Item -ItemType Junction -Path $alias -Target (Split-Path $inside) | Out-Null
+        $message = $null
+        try { & (Join-Path $check 'eng/Import-Protocol.ps1') -ArchivePath (Join-Path $alias $pin.file_name) }
+        catch { $message = $_.Exception.Message }
+        finally { [IO.Directory]::Delete($alias) }
+        if ($message -cne "Move the archive out of artifacts/$name; the import clears that folder.") {
+            throw "Protocol import did not refuse an archive in artifacts/$name reached through a link: $message"
+        }
+        if (!(Test-Path -LiteralPath $inside)) { throw "Protocol import deleted its archive in artifacts/$name." }
+    }
+    foreach ($path in $markers) {
+        if (!(Test-Path -LiteralPath (Join-Path $check $path))) { throw "A refused protocol import cleared $(Split-Path $path)." }
+    }
     foreach ($project in @('point-inspection/grpc/PointInspection.Grpc.csproj', 'point-inspection/dotnet/PointInspection.csproj', 'tests/FakeServer/FakeServer.csproj')) {
         & $Dotnet restore $project --locked-mode
         if ($LASTEXITCODE) { throw "Restore failed: $project" }
