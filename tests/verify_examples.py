@@ -1,8 +1,10 @@
 """Engineering-only checks for the tutorials. Never launches SpatialAnalyzer."""
 import argparse
+from collections import namedtuple
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import socket
 import subprocess
@@ -10,6 +12,159 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# The typed failures the test server sends, copied from Server 0.10.0 (see
+# tests/FakeServer/Program.cs). mp_result_code is None for a failure without MP details.
+Failure = namedtuple("Failure", "status detail kind code disposition recovery mp_result_code")
+MP_FAILURE = Failure("FailedPrecondition", "The SpatialAnalyzer MP command failed.", "mpFailure",
+                     "mp-command-failed", "completed", "none", 3)
+WORKER_FAILURE = Failure("Unavailable", "The SpatialAnalyzer worker failed and requires explicit recovery.",
+                         "workerFailure", "worker-exited-during-execution", "startedOutcomeUnknown",
+                         "workerReplacement", None)
+# Each operation's declared output fields, in order (FakeOperation in tests/FakeServer/Program.cs).
+# For an MP failure, Server 0.10.0 reports one NotAttempted retrieval per output, in this order.
+OUTPUTS = {
+    "analysis_operations.get_point_coordinate": ["vector_representation", "x_value", "y_value", "z_value"],
+    "construction_operations.construct_collection": [],
+    "construction_operations.construct_point_in_working_coordinates": [],
+}
+# case: (operation, failure, replay safety, replay guidance)
+OPERATION_FAILURES = {
+    "missing-point": ("analysis_operations.get_point_coordinate", MP_FAILURE, "safe", "doNotReplay"),
+    "unknown": ("analysis_operations.get_point_coordinate", WORKER_FAILURE, "safe", "mayReplay"),
+    "collection-failure": ("construction_operations.construct_collection", MP_FAILURE, "unsafe", "doNotReplay"),
+    "second-write-failure": ("construction_operations.construct_point_in_working_coordinates",
+                             MP_FAILURE, "unsafe", "doNotReplay"),
+    "write-unknown": ("construction_operations.construct_point_in_working_coordinates",
+                      WORKER_FAILURE, "unsafe", "reconcileBeforeReplay"),
+}
+PYTHON_STATUS = {"FailedPrecondition": "FAILED_PRECONDITION", "Unavailable": "UNAVAILABLE"}
+# The other failing cases are rejected by the program or its client before any MP failure.
+CONNECT_FIRST = "System.InvalidOperationException: Connect a compatible SA 2026 server in Control Center first."
+NOT_SUCCESSFUL = "System.InvalidOperationException: SA did not return a successful result."
+DOTNET_PROTOCOL = "Briosa.BriosaProtocolException: Briosa returned an invalid protocol value ({})."
+DOTNET_COMPATIBILITY = "Briosa.BriosaCompatibilityException: The Briosa runtime is incompatible with this client ({})."
+PYTHON_COMPATIBILITY = ("briosa.errors.BriosaCompatibilityError: The Briosa server is incompatible with this client "
+                        "(server-installation-identity-mismatch).")
+TYPESCRIPT_COMPATIBILITY = ("BriosaCompatibilityError: Briosa compatibility check failed: "
+                            "server-installation-identity-mismatch.", "server-installation-identity-mismatch")
+CLIENT_ERRORS = {
+    # Grpc.Net.Client ends a call at the caller's deadline with an empty detail.
+    "grpc": {"wrong-target": CONNECT_FIRST, "wrong-contract": CONNECT_FIRST, "disconnected": CONNECT_FIRST,
+             "missing-output": NOT_SUCCESSFUL, "mp-result-failure": NOT_SUCCESSFUL,
+             "write-result-failure": NOT_SUCCESSFUL,
+             "deadline": 'Grpc.Core.RpcException: Status(StatusCode="DeadlineExceeded", Detail="")'},
+    "dotnet": {"wrong-target": DOTNET_COMPATIBILITY.format("server-installation-target-mismatch"),
+               "wrong-contract": DOTNET_COMPATIBILITY.format("server-installation-contract-mismatch"),
+               "disconnected": DOTNET_PROTOCOL.format("startup-readiness-not-established"),
+               "missing-output": DOTNET_PROTOCOL.format("required-output-missing:z_value")},
+    "python": {"wrong-target": PYTHON_COMPATIBILITY, "wrong-contract": PYTHON_COMPATIBILITY,
+               "disconnected": "briosa.errors.BriosaLifecycleError: Briosa lifecycle operation is unavailable "
+                               "(startup-readiness-not-established).",
+               "missing-output": "briosa.errors.BriosaProtocolError: Briosa returned invalid protocol data "
+                                 "(required-output-missing:z_value)."},
+    # (header line, diagnosticCode property)
+    "typescript": {"wrong-target": TYPESCRIPT_COMPATIBILITY, "wrong-contract": TYPESCRIPT_COMPATIBILITY,
+                   "disconnected": ("BriosaProtocolError: Briosa returned invalid protocol data "
+                                    "(startup-readiness-not-established).", "startup-readiness-not-established"),
+                   "missing-output": ("BriosaProtocolError: Briosa returned invalid protocol data "
+                                      "(required-output-missing:zValue).", "required-output-missing:zValue")},
+}
+PYTHON_CAUSE = "The above exception was the direct cause of the following exception:"
+PYTHON_CHAIN = re.compile("\n\n(" + re.escape(PYTHON_CAUSE) +
+                          "|During handling of the above exception, another exception occurred:)\n\n")
+
+
+def js_literal(value):
+    """A value as Node's util.inspect prints it, without whitespace."""
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return f"'{value}'"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, list):
+        return "[" + ",".join(map(js_literal, value)) + "]"
+    return "{" + ",".join(f"{key}:{js_literal(item)}" for key, item in value.items()) + "}"
+
+
+def without_whitespace(text):
+    """Printed JavaScript values with the whitespace outside strings removed."""
+    return "".join(re.findall(r"""'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[^\s'"]+""", text))
+
+
+def terminal_error(name, stderr):
+    """The uncaught error a program ended with, as its runtime reports it on stderr.
+
+    .NET: the exceptions of the unhandled-exception report, outermost first. Python: the
+    exceptions of the traceback, first raised first, and the chain markers between them,
+    leaving out gRPC's debug_error_string line. Node: the header line and the printed own
+    properties of the uncaught error. None if stderr does not hold such a report.
+    """
+    lines = stderr.splitlines()
+    if name in ("grpc", "dotnet"):
+        prefix = "Unhandled exception. "
+        # Exactly one report: a second one means the program failed again afterwards.
+        if not lines or not lines[0].startswith(prefix) or sum(line.startswith(prefix) for line in lines) != 1:
+            return None
+        return [lines[0][len(prefix):]] + [line[len(" ---> "):] for line in lines if line.startswith(" ---> ")]
+    if name == "python":
+        parts = PYTHON_CHAIN.split(stderr.rstrip("\n"))
+        exceptions = []
+        for part in parts[::2]:
+            report = part.splitlines()
+            if not report or report[0] != "Traceback (most recent call last):":
+                return None
+            # The exception follows the indented frames.
+            start = next((i for i, line in enumerate(report) if i and not line.startswith(" ")), None)
+            if start is None:
+                return None
+            exceptions.append("\n".join(line for line in report[start:]
+                                        if not line.startswith("\tdebug_error_string = ")))
+        return exceptions, parts[1::2]
+    blocks = stderr.rstrip("\n").split("\n\n")
+    if len(blocks) < 2 or not re.fullmatch(r"Node\.js v\d+\.\d+\.\d+", blocks[-1]):
+        return None
+    error = blocks[-2].splitlines()
+    frames = 1
+    while frames < len(error) and error[frames].startswith("    at "):
+        frames += 1
+    # The last stack frame opens the error's own properties.
+    if frames == 1 or not error[frames - 1].endswith(" {") or error[-1] != "}":
+        return None
+    return error[0], without_whitespace("{" + "\n".join(error[frames:]))
+
+
+def expected_error(name, case):
+    """The uncaught error a failing program must end with, in terminal_error's form."""
+    if case not in OPERATION_FAILURES:
+        error = CLIENT_ERRORS[name][case]
+        if name == "python":
+            return [error], []
+        if name == "typescript":
+            return error[0], js_literal({"diagnosticCode": error[1]})
+        return [error]
+    operation, failure, safety, replay = OPERATION_FAILURES[case]
+    rpc = f'Grpc.Core.RpcException: Status(StatusCode="{failure.status}", Detail="{failure.detail}")'
+    message = f"Briosa operation '{operation}' failed ({failure.code})."
+    if name == "grpc":
+        # The raw example does not decode the error trailer; the gRPC error ends the program.
+        return [rpc]
+    if name == "dotnet":
+        return ["Briosa.BriosaOperationException: " + message, rpc]
+    if name == "python":
+        cause = ("grpc.aio._call.AioRpcError: <AioRpcError of RPC that terminated with:\n"
+                 f"\tstatus = StatusCode.{PYTHON_STATUS[failure.status]}\n\tdetails = \"{failure.detail}\"\n>")
+        return [cause, "briosa.errors.BriosaOperationError: " + message], [PYTHON_CAUSE]
+    mp_execution = None if failure.mp_result_code is None else {
+        "state": "failed", "mpResultCode": failure.mp_result_code,
+        "outputRetrievals": [{"fieldName": field, "state": "notAttempted", "diagnosticCode": None}
+                             for field in OUTPUTS[operation]]}
+    # Node prints every typed field of the uncaught BriosaOperationError, in this order.
+    return f"BriosaOperationError: Briosa operation failed ({failure.code}).", js_literal({
+        "operationId": operation, "kind": failure.kind, "diagnosticCode": failure.code,
+        "executionDisposition": failure.disposition, "recoveryGuidance": failure.recovery,
+        "replayGuidance": replay, "replaySafety": safety, "mpExecution": mp_execution})
 
 
 def run_checked(command, cwd):
@@ -64,11 +219,11 @@ def main():
     (payload / "Briosa.Worker.exe").write_bytes(b"Test placeholder; never executed.")
     (payload / "manifest.json").write_text(json.dumps({
         "schemaVersion": 3,
-        "artifactName": "briosa-0.9.0-sa-2026.1.0529.7-win-x64",
-        "briosaVersion": "0.9.0", "sourceRevision": "a" * 40,
+        "artifactName": "briosa-0.10.0-sa-2026.1.0529.7-win-x64",
+        "briosaVersion": "0.10.0", "sourceRevision": "a" * 40,
         "spatialAnalyzerTarget": "2026.1.0529.7", "runtimeIdentifier": "win-x64",
         "protocolPackage": "briosa", "spatialAnalyzerBundled": False,
-        "compatibility": {"major": 2, "revision": 0},
+        "compatibility": {"major": 3, "revision": 0},
     }), encoding="utf-8")
     server_path = executable.as_posix()
     with socket.socket() as sock:
@@ -105,9 +260,9 @@ def main():
     collections = {"grpc": "BriosaGrpcDemo", "dotnet": "BriosaDotnetDemo",
                    "typescript": "BriosaTypeScriptDemo", "python": "BriosaPythonDemo"}
     for name, command in commands.items():
-        cases = ["ok", "inches", "wrong-target", "wrong-contract", "disconnected",
-                 "missing-point", "unknown", "missing-output", "collection-failure",
-                 "write-unknown", "second-write-failure"]
+        cases = ["ok", "inches", "partial-success", "wrong-target", "wrong-contract",
+                 "disconnected", "missing-point", "unknown", "missing-output",
+                 "collection-failure", "write-unknown", "second-write-failure"]
         if name == "grpc":
             cases += ["mp-result-failure", "deadline", "write-result-failure"]
         for case in cases:
@@ -133,19 +288,25 @@ def main():
                                         text=True, timeout=50)
                 (evidence / f"{name}-{case}.output").write_text(result.stdout + result.stderr, encoding="utf-8")
                 calls = calls_path.read_text().splitlines() if calls_path.exists() else []
-                if case in ("ok", "inches"):
+                if case in ("ok", "inches", "partial-success"):
                     unit = "Inches" if case == "inches" else "Millimeters"
                     expected = [f"Length unit: {unit}", "P1: (0.000, 0.000, 0.000)",
                                 "P2: (3.000, 4.000, 0.000)", f"Distance: 5.000 {unit}"]
+                    if case == "partial-success" and name == "grpc":
+                        # The clients return MP code 4 as a success; the raw example reports it.
+                        expected.insert(3, "SA reported a partial success (MP code 4).")
                     assert result.returncode == 0, result.stderr
                     assert result.stdout.splitlines() == expected, result.stdout
                     assert [call for call in calls if not call.startswith("sdk.")] == ["units", "collection.create", "point.create", "point.create", "point", "point", "distance"], calls
                 else:
                     assert result.returncode != 0, f"{name}/{case} should stop"
                     assert "Distance:" not in result.stdout, result.stdout
+                    error, expected = terminal_error(name, result.stderr), expected_error(name, case)
+                    assert error == expected, (f"{name}/{case} did not end with the expected uncaught error.\n"
+                                               f"Expected: {expected!r}\nFound: {error!r}\n{result.stderr}")
                     if case in ("wrong-target", "wrong-contract", "disconnected"):
-                        assert "units" not in calls and "point" not in calls, calls
-                        assert not any(call.endswith(".create") for call in calls), calls
+                        # The test server logs every MP call it receives, even before readiness.
+                        assert [call for call in calls if not call.startswith("sdk.")] == [], f"An MP was attempted: {calls}"
                     elif case in ("collection-failure", "write-unknown", "second-write-failure", "write-result-failure"):
                         assert calls.count("collection.create") == 1, calls
                         expected_writes = 0 if case == "collection-failure" else 2 if case == "second-write-failure" else 1
