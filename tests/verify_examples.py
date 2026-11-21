@@ -104,7 +104,8 @@ def terminal_error(name, stderr):
     lines = stderr.splitlines()
     if name in ("grpc", "dotnet"):
         prefix = "Unhandled exception. "
-        if not lines or not lines[0].startswith(prefix):
+        # Exactly one report: a second one means the program failed again afterwards.
+        if not lines or not lines[0].startswith(prefix) or sum(line.startswith(prefix) for line in lines) != 1:
             return None
         return [lines[0][len(prefix):]] + [line[len(" ---> "):] for line in lines if line.startswith(" ---> ")]
     if name == "python":
