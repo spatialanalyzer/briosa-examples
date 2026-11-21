@@ -57,7 +57,13 @@ tutorials pin the 0.5.0 packages: NuGet `Briosa.2026.1.0529.7`, npm
 protocol archive. Unless `artifacts/` already holds it, `eng/Import-Protocol.ps1`
 downloads that archive from the GitHub release. Before anything is built, it
 checks the archive's SHA-256, the manifest's version, source revision, SA target
-and contract major 3, and the SHA-256 of every file the manifest lists.
+and contract major 3, and the SHA-256 of every file the manifest lists. It
+empties `artifacts/protocol-package` and `artifacts/protocol` before it extracts
+and copies, and then checks that `artifacts/protocol` holds exactly the
+manifest's proto files, so no file from an earlier import remains. It clears only
+those two folders, and refuses if either one or `artifacts/` is a link.
+`eng/Test.ps1` repeats the import in a scratch copy holding planted stale files
+and fails if one survives.
 
 | Input | Built from | Download |
 | --- | --- | --- |
