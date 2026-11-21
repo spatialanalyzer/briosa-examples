@@ -80,7 +80,9 @@ namespace BriosaExamples
 }
 '@
 }
-Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.ZipFile
+# ZipFileExtensions is in a different assembly in Windows PowerShell than in PowerShell 7.
+$zipExtensions = if ($PSVersionTable.PSEdition -eq 'Desktop') { 'System.IO.Compression.FileSystem' } else { 'System.IO.Compression.ZipFile' }
+Add-Type -AssemblyName System.IO.Compression, $zipExtensions
 
 if (!$ArchivePath) {
     $ArchivePath = Join-Path $cache $pin.file_name
