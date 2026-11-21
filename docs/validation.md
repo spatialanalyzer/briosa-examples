@@ -19,8 +19,9 @@ builds the actual examples. The test harness makes temporary source copies
 with only the server selection/endpoint changed to its isolated test server.
 It then runs those programs through collection and point construction, successful
 reads, different units, a partial success (MP code 4), failed or incomplete calls,
-incompatible targets/contracts, and disconnected startup. The test server begins
-without points, so the programs must construct them before they can read them.
+a test server that reports another SA target or contract, and disconnected
+startup. The test server begins without points, so the programs must construct
+them before they can read them.
 
 The harness verifies output values and call order, checks that failed operations
 are not replayed, checks client SDK cleanup, and checks that raw gRPC leaves the
@@ -46,10 +47,25 @@ These tutorials use the `0.5.0` .NET, Python, and JavaScript clients for
 SA 2026.1.0529.7 and the Server `0.10.0` protocol. They require behavioral
 compatibility major 3. The direct gRPC example verifies that contract before MP
 work; the language clients perform their own server selection and compatibility
-checks. The `wrong-contract` scenario advertises major 2 and verifies rejection.
-The test server also reports the major-3 admission profile and each operation's
-reviewed classification, copied from the real server's `standard` profile. The
-clients read both at startup.
+checks.
+
+In the `wrong-target` and `wrong-contract` cases the test server reports SA target
+2024.1.0508.5 or contract major 2. The raw gRPC example rejects that server
+itself. For the language clients the case is an installation/runtime mismatch:
+the installation manifest the harness writes beside the test server says
+2026.1.0529.7 and major 3. Each client starts that test server, compares the
+identity it reports with the manifest, and stops before it starts the SDK or
+calls an MP. It reports `server-installation-target-mismatch` or
+`server-installation-contract-mismatch` (.NET), or
+`server-installation-identity-mismatch` (Python and TypeScript). No server
+rejects anything in these cases.
+
+The test server reports the `standard` admission profile with a capability list
+that is a subset of a real server's: only the five operations the tutorials call,
+all of which it implements. Each row copies that operation's reviewed
+classification from Server 0.10.0. The policy fingerprint is synthetic
+(`sha256:` followed by 64 `c` characters), not the real profile's fingerprint.
+The clients read the profile and the list at startup.
 
 ### What the test server simulates
 
@@ -131,7 +147,10 @@ contract major 3, answers the distance read with MP code 4: the clients return
 it as a success, and the raw gRPC example reports it and continues. All three C#
 builds and the TypeScript build completed without warnings or errors. This is
 portable fake-server evidence; licensed execution has not been recorded for
-these pins.
+these pins. After the review follow-up (the clean protocol import and its
+stale-file check, the Server 0.10.0 failure shapes and the typed-detail checks),
+an offline local run of `eng/Test.ps1` on 2026-11-21 (UTC) again passed all
+51 scenarios, with no build warnings or errors.
 
 Earlier runs against source builds of the client pull requests and against the
 frozen protocol checkpoint `0.10.0-dev.1`
@@ -150,6 +169,8 @@ stop on failure; they do not automatically retry an uncertain write.
 
 Live results are recorded separately from portable checks in the
 [September 19 licensed validation record](evidence/licensed-2026-09-19.md).
+That record covers Server 0.7.0 and the 0.2.0 clients. Nothing in `eng/Test.ps1`
+runs against SpatialAnalyzer, and no licensed run is recorded for the current pins.
 
 With permission to use a licensed installation:
 

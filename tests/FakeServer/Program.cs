@@ -141,23 +141,29 @@ sealed class Discovery(FakeData data) : DiscoveryService.DiscoveryServiceBase
     });
     public override Task<ListCapabilitiesResponse> ListCapabilities(ListCapabilitiesRequest request, ServerCallContext context)
     {
-        // Shaped like the packaged standard profile. Each row copies the real server's
-        // reviewed classification: no risk flags, quick, no recorded validation gap.
+        // A subset of the packaged standard profile: only the five operations the tutorials
+        // call, each of which this fake implements. Each row copies the real server's reviewed
+        // classification: no risk flags, quick, no recorded validation gap. The policy
+        // fingerprint is a synthetic placeholder, not the real profile's fingerprint.
         var response = new ListCapabilitiesResponse { SpatialAnalyzerTarget = "2026.1.0529.7", ProtocolPackage = "briosa", AdmissionProfile = "standard", PolicyFingerprint = "sha256:" + new string('c', 64) };
-        var ids = new[] { "utility_operations.get_active_units", "utility_operations.get_working_frame_properties", "analysis_operations.get_point_coordinate", "analysis_operations.get_point_to_point_distance", "construction_operations.construct_collection", "construction_operations.construct_point_in_working_coordinates" };
-        string[] methods = ["/briosa.UtilityOperations/GetActiveUnits", "/briosa.UtilityOperations/GetWorkingFrameProperties",
-            "/briosa.AnalysisOperations/GetPointCoordinate", "/briosa.AnalysisOperations/GetPointToPointDistance",
-            "/briosa.ConstructionOperations/ConstructCollection", "/briosa.ConstructionOperations/ConstructPointInWorkingCoordinates"];
-        for (int i = 0; i < methods.Length; i++)
+        (string Id, string Method, bool Mutating)[] operations =
+        [
+            ("utility_operations.get_active_units", "/briosa.UtilityOperations/GetActiveUnits", false),
+            ("analysis_operations.get_point_coordinate", "/briosa.AnalysisOperations/GetPointCoordinate", false),
+            ("analysis_operations.get_point_to_point_distance", "/briosa.AnalysisOperations/GetPointToPointDistance", false),
+            ("construction_operations.construct_collection", "/briosa.ConstructionOperations/ConstructCollection", true),
+            ("construction_operations.construct_point_in_working_coordinates", "/briosa.ConstructionOperations/ConstructPointInWorkingCoordinates", true)
+        ];
+        foreach (var (id, method, mutating) in operations)
         {
-            if (data.Case == "unsupported" && i == 2) continue;
-            var split = methods[i].Split('/');
+            if (data.Case == "unsupported" && id == "analysis_operations.get_point_coordinate") continue;
+            var split = method.Split('/');
             response.Operations.Add(new OperationCapability
             {
-                OperationId = ids[i], GrpcService = split[1], Rpc = split[2], FullyQualifiedMethod = methods[i],
-                Effect = i >= 4 ? OperationEffect.Mutating : OperationEffect.ReadOnly,
-                ReplaySafety = i >= 4 ? ReplaySafety.Unsafe : ReplaySafety.Safe,
-                ExecutionScope = i >= 4 ? OperationExecutionScope.GlobalStateMutation : OperationExecutionScope.GlobalStateRead,
+                OperationId = id, GrpcService = split[1], Rpc = split[2], FullyQualifiedMethod = method,
+                Effect = mutating ? OperationEffect.Mutating : OperationEffect.ReadOnly,
+                ReplaySafety = mutating ? ReplaySafety.Unsafe : ReplaySafety.Safe,
+                ExecutionScope = mutating ? OperationExecutionScope.GlobalStateMutation : OperationExecutionScope.GlobalStateRead,
                 DurationClass = OperationDurationClass.Quick,
                 ValidationStatus = OperationValidationStatus.NoRecordedGap,
                 Admission = OperationAdmission.Admitted
