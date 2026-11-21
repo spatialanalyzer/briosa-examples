@@ -81,6 +81,7 @@ with each operation's reviewed replay safety and output fields.
 | `unknown` (point read), `write-unknown` (point write) | The worker exited during the MP, so the reply was lost | `Unavailable`, `WorkerFailure`, `worker-exited-during-execution`, `StartedOutcomeUnknown`, `WorkerReplacement`; `MayReplay` for the safe read, `ReconcileBeforeReplay` for the unsafe write |
 | `deadline` (raw gRPC) | The caller's deadline elapses | No reply within the example's 10-second deadline. As with Server 0.10.0, the caller gets `DeadlineExceeded` without typed detail |
 | `missing-output`; `mp-result-failure` and `write-result-failure` (raw gRPC) | None | An `OK` result with an absent output, or with code 1 or 3 reported as `Succeeded`. Server 0.10.0 sends a typed `DataLoss`/`OutputRetrievalFailure` or `FailedPrecondition`/`MpFailure` error instead. These cases test the result checks in the clients and the raw example |
+| `nonfinite`: implemented in the test server, not run by the harness | None | An `OK` point read whose `x_value` is NaN. Server 0.10.0 sends a typed `DataLoss`/`OutputRetrievalFailure` error instead |
 
 Code 3 is the MP failure code SA returned in the server's released licensed probe
 records; the server reports whichever code SA returns. Some behavior is not
@@ -181,7 +182,11 @@ portable fake-server evidence; licensed execution has not been recorded for
 these pins. After the review follow-up (the clean protocol import and its
 stale-file check, the Server 0.10.0 failure shapes and the typed-detail checks),
 an offline local run of `eng/Test.ps1` on 2026-11-21 (UTC) again passed all
-51 scenarios, with no build warnings or errors.
+51 scenarios, with no build warnings or errors. After the second review
+follow-up (an import that cannot delete its own archive, the uncaught-error
+checks, and the check that no MP is attempted in the refused cases), another
+offline local run on 2026-11-21 (UTC) passed the import self-checks and all 51
+scenarios, with no build warnings or errors.
 
 Earlier runs against source builds of the client pull requests and against the
 frozen protocol checkpoint `0.10.0-dev.1`
