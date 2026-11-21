@@ -48,55 +48,54 @@ The test server also reports the major-3 admission profile and each operation's
 reviewed classification, copied from the real server's `standard` profile. The
 clients read both at startup.
 
-### Published clients and the protocol checkpoint
+### Published packages and the protocol archive
 
-The language tutorials pin the published 0.5.0 packages: NuGet
-`Briosa.2026.1.0529.7`, npm `@spatialanalyzer/briosa-2026.1.0529.7` (installed
-as `briosa`), and PyPI `briosa-2026-1-0529-7`. Server 0.10.0 is not released
-yet, so the protocol pin is still the frozen checkpoint `0.10.0-dev.1` of
-[briosa#363](https://github.com/spatialanalyzer/briosa/pull/363), which has no
-download URL. Build it first:
-
-```powershell
-./eng/Build-ProtocolCheckpoint.ps1
-./eng/Test.ps1
-```
-
-The script clones briosa at the pinned source commit and builds the archive
-into `artifacts/`, the way the client CI rebuilds the checkpoint. It needs Git
-and buf 1.72.0. `eng/Import-Protocol.ps1` then verifies the archive against the
-pinned SHA-256.
+Everything the tutorials consume is a published release file. The language
+tutorials pin the 0.5.0 packages: NuGet `Briosa.2026.1.0529.7`, npm
+`@spatialanalyzer/briosa-2026.1.0529.7` (installed as `briosa`), and PyPI
+`briosa-2026-1-0529-7`. `protocol/protocol.lock.json` pins the Server 0.10.0
+protocol archive. Unless `artifacts/` already holds it, `eng/Import-Protocol.ps1`
+downloads that archive from the GitHub release. Before anything is built, it
+checks the archive's SHA-256, the manifest's version, source revision, SA target
+and contract major 3, and the SHA-256 of every file the manifest lists.
 
 | Input | Built from | Download |
 | --- | --- | --- |
-| Protocol checkpoint `0.10.0-dev.1` | briosa `2960705eb3152646513dca2b5d2043cd7cfffb75` | None until the release |
+| Protocol archive 0.10.0 | briosa `ee16784d9fdaf67ce7d7bb0b68609a98fe403e1c` (tag `v0.10.0`) | [GitHub release](https://github.com/spatialanalyzer/briosa/releases/download/v0.10.0/briosa-protocol-0.10.0-sa-2026.1.0529.7.zip) |
 | .NET client 0.5.0 | briosa-dotnet `bc72244454c436441cabbaad1ae4e8ca519a5a9e` | [NuGet](https://api.nuget.org/v3-flatcontainer/briosa.2026.1.0529.7/0.5.0/briosa.2026.1.0529.7.0.5.0.nupkg) |
 | JavaScript client 0.5.0 | briosa-js `b94fce3f6e95b3e15f99f9d65f1710cc8c8d3119` | [npm](https://registry.npmjs.org/@spatialanalyzer/briosa-2026.1.0529.7/-/briosa-2026.1.0529.7-0.5.0.tgz) |
 | Python client 0.5.0 | briosa-py `cae6e535ebfd89fd6c4ba280c741ec5f7fd04a0d` | [PyPI](https://files.pythonhosted.org/packages/07/97/fbe56e4590c2af58291c8732cd3c4aca07de278a08c3726b75dc0b0f975e/briosa_2026_1_0529_7-0.5.0-py3-none-any.whl) |
 
-The 2026-11-20 run used these files:
+The SHA-256 values of those files:
 
 ```text
-0bf2b7f216a8d1040bd416b4566cf6c53a13f398ec81657dc91b674e0f45cae3  briosa-protocol-0.10.0-dev.1-sa-2026.1.0529.7.zip
+8dfb579434997ee4d6b07500810575d16b32499ccff57b4b4c1f278afa2c16f8  briosa-protocol-0.10.0-sa-2026.1.0529.7.zip
 adc0de5a274034d7bf393502095ed620a49e0e1a467b1263a86d192f47a38d29  briosa.2026.1.0529.7.0.5.0.nupkg
 7d0583ed9b6ec489d3f93af74df877a01856138913952e7e0ca098a3344105cd  briosa-2026.1.0529.7-0.5.0.tgz
 f2ecb2aaaf4d0b5de24910986f9d778453c982f5a82ae2031213b0d62edc6064  briosa_2026_1_0529_7-0.5.0-py3-none-any.whl
 ```
 
-The archive matches the checkpoint recorded in briosa#363. The three packages
-match the registry files and SHA-256 values that
+The archive's SHA-256 is the digest GitHub lists for that release asset. The
+three packages match the registry files and SHA-256 values that
 [briosa#381](https://github.com/spatialanalyzer/briosa/pull/381) pins in
 `compatibility/retained-clients.json`.
 
-On 2026-11-20, `eng/Test.ps1` passed all **51 scenarios** with the published
-packages and the checkpoint archive. The `partial-success` case, new with
+On 2026-11-21 (UTC), `eng/Test.ps1` passed all **51 scenarios** with the
+published packages and the release archive. The `partial-success` case, new with
 contract major 3, answers the distance read with MP code 4: the clients return
 it as a success, and the raw gRPC example reports it and continues. All three C#
 builds and the TypeScript build completed without warnings or errors. This is
-portable fake-server evidence. The 0.10.0 release archive still needs its own
-run, and licensed execution has not been recorded for these pins. Earlier runs
-against source builds of the client pull requests are recorded in
-[briosa-examples#16](https://github.com/spatialanalyzer/briosa-examples/pull/16).
+portable fake-server evidence; licensed execution has not been recorded for
+these pins.
+
+Earlier runs against source builds of the client pull requests and against the
+frozen protocol checkpoint `0.10.0-dev.1`
+([briosa#363](https://github.com/spatialanalyzer/briosa/pull/363)) are recorded
+in [briosa-examples#16](https://github.com/spatialanalyzer/briosa-examples/pull/16).
+Each of the 31 files the release manifest lists has the same SHA-256 as in that
+checkpoint, including the descriptor set
+(`aa938e86fc62627d58994953398da3b7dc6a202f5f3c90e778bbddccda0261f8`). Only the
+manifest's name, version and source revision differ.
 
 The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/docs/architecture/client-library-behavioral-contract.md)
 defines overload and lifecycle behavior. Tutorial calls remain sequential and
