@@ -11,6 +11,78 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# The typed failures the test server sends, copied from Server 0.10.0 (see
+# tests/FakeServer/Program.cs): (gRPC status, status detail, kind, diagnostic code,
+# execution disposition, recovery guidance, MP details as TypeScript prints them).
+MP_FAILURE = ("FailedPrecondition", "The SpatialAnalyzer MP command failed.", "mpFailure",
+              "mp-command-failed", "completed", "none",
+              ["mpExecution: {", "state: 'failed'", "mpResultCode: 3"])
+WORKER_FAILURE = ("Unavailable", "The SpatialAnalyzer worker failed and requires explicit recovery.",
+                  "workerFailure", "worker-exited-during-execution", "startedOutcomeUnknown",
+                  "workerReplacement", ["mpExecution: null"])
+# case: (operation, failure, replay safety, replay guidance)
+OPERATION_FAILURES = {
+    "missing-point": ("analysis_operations.get_point_coordinate", MP_FAILURE, "safe", "doNotReplay"),
+    "unknown": ("analysis_operations.get_point_coordinate", WORKER_FAILURE, "safe", "mayReplay"),
+    "collection-failure": ("construction_operations.construct_collection", MP_FAILURE, "unsafe", "doNotReplay"),
+    "second-write-failure": ("construction_operations.construct_point_in_working_coordinates",
+                             MP_FAILURE, "unsafe", "doNotReplay"),
+    "write-unknown": ("construction_operations.construct_point_in_working_coordinates",
+                      WORKER_FAILURE, "unsafe", "reconcileBeforeReplay"),
+}
+PYTHON_STATUS = {"FailedPrecondition": "FAILED_PRECONDITION", "Unavailable": "UNAVAILABLE"}
+# The other failing cases are rejected by the program or its client before any MP failure.
+CONNECT_FIRST = "System.InvalidOperationException: Connect a compatible SA 2026 server in Control Center first."
+NOT_SUCCESSFUL = "System.InvalidOperationException: SA did not return a successful result."
+DOTNET_PROTOCOL = "Briosa.BriosaProtocolException: Briosa returned an invalid protocol value ({})."
+DOTNET_COMPATIBILITY = "Briosa.BriosaCompatibilityException: The Briosa runtime is incompatible with this client ({})."
+PYTHON_COMPATIBILITY = ("briosa.errors.BriosaCompatibilityError: The Briosa server is incompatible with this client "
+                        "(server-installation-identity-mismatch).")
+TYPESCRIPT_COMPATIBILITY = ("BriosaCompatibilityError: Briosa compatibility check failed: "
+                            "server-installation-identity-mismatch.")
+CLIENT_ERRORS = {
+    "grpc": {"wrong-target": CONNECT_FIRST, "wrong-contract": CONNECT_FIRST, "disconnected": CONNECT_FIRST,
+             "missing-output": NOT_SUCCESSFUL, "mp-result-failure": NOT_SUCCESSFUL,
+             "write-result-failure": NOT_SUCCESSFUL,
+             "deadline": 'Grpc.Core.RpcException: Status(StatusCode="DeadlineExceeded"'},
+    "dotnet": {"wrong-target": DOTNET_COMPATIBILITY.format("server-installation-target-mismatch"),
+               "wrong-contract": DOTNET_COMPATIBILITY.format("server-installation-contract-mismatch"),
+               "disconnected": DOTNET_PROTOCOL.format("startup-readiness-not-established"),
+               "missing-output": DOTNET_PROTOCOL.format("required-output-missing:z_value")},
+    "python": {"wrong-target": PYTHON_COMPATIBILITY, "wrong-contract": PYTHON_COMPATIBILITY,
+               "disconnected": "briosa.errors.BriosaLifecycleError: Briosa lifecycle operation is unavailable "
+                               "(startup-readiness-not-established).",
+               "missing-output": "briosa.errors.BriosaProtocolError: Briosa returned invalid protocol data "
+                                 "(required-output-missing:z_value)."},
+    "typescript": {"wrong-target": TYPESCRIPT_COMPATIBILITY, "wrong-contract": TYPESCRIPT_COMPATIBILITY,
+                   "disconnected": "BriosaProtocolError: Briosa returned invalid protocol data "
+                                   "(startup-readiness-not-established).",
+                   "missing-output": "BriosaProtocolError: Briosa returned invalid protocol data "
+                                     "(required-output-missing:zValue)."},
+}
+
+
+def expected_report(name, case):
+    """Text a failing program must print: the typed details its error reports."""
+    if case not in OPERATION_FAILURES:
+        return [CLIENT_ERRORS[name][case]]
+    operation, failure, safety, replay = OPERATION_FAILURES[case]
+    status, detail, kind, code, disposition, recovery, mp_details = failure
+    rpc_status = f'Grpc.Core.RpcException: Status(StatusCode="{status}", Detail="{detail}")'
+    if name == "grpc":
+        # The raw example does not decode the error trailer; it reports the gRPC status.
+        return [rpc_status]
+    if name == "dotnet":
+        return [f"Briosa.BriosaOperationException: Briosa operation '{operation}' failed ({code}).", rpc_status]
+    if name == "python":
+        return [f"briosa.errors.BriosaOperationError: Briosa operation '{operation}' failed ({code}).",
+                f"status = StatusCode.{PYTHON_STATUS[status]}", f'details = "{detail}"']
+    # Node prints every typed field of the uncaught BriosaOperationError.
+    return [f"BriosaOperationError: Briosa operation failed ({code}).", f"operationId: '{operation}'",
+            f"kind: '{kind}'", f"diagnosticCode: '{code}'", f"executionDisposition: '{disposition}'",
+            f"recoveryGuidance: '{recovery}'", f"replayGuidance: '{replay}'", f"replaySafety: '{safety}'",
+            *mp_details]
+
 
 def run_checked(command, cwd):
     result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=120)
@@ -146,6 +218,9 @@ def main():
                 else:
                     assert result.returncode != 0, f"{name}/{case} should stop"
                     assert "Distance:" not in result.stdout, result.stdout
+                    report = result.stdout + result.stderr
+                    for text in expected_report(name, case):
+                        assert text in report, f"{name}/{case} did not report {text!r}:\n{report}"
                     if case in ("wrong-target", "wrong-contract", "disconnected"):
                         assert "units" not in calls and "point" not in calls, calls
                         assert not any(call.endswith(".create") for call in calls), calls

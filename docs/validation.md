@@ -24,7 +24,10 @@ without points, so the programs must construct them before they can read them.
 
 The harness verifies output values and call order, checks that failed operations
 are not replayed, checks client SDK cleanup, and checks that raw gRPC leaves the
-external server alive. Test-only connection changes are saved with the evidence
+external server alive. For each failing case it also checks the error the program
+prints, so a generic exception or a different failure does not pass; see
+[what the test server simulates](#what-the-test-server-simulates).
+Test-only connection changes are saved with the evidence
 under `artifacts/test-*/`. The tutorial sources contain no test switch or
 synthetic measurement path. No real server distribution, SDK, or SA is launched.
 
@@ -47,6 +50,42 @@ checks. The `wrong-contract` scenario advertises major 2 and verifies rejection.
 The test server also reports the major-3 admission profile and each operation's
 reviewed classification, copied from the real server's `standard` profile. The
 clients read both at startup.
+
+### What the test server simulates
+
+For each operation failure, the test server sends the gRPC status and typed
+`OperationError` that Server 0.10.0 sends on the same path. The values are copied
+from its [outcome mapper](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/targets/2026.1.0529.7/src/Briosa.Server/Services/Outcomes/GrpcOperationOutcomeMapper.cs)
+and the [outcome contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/docs/architecture/execution-outcomes-and-recovery.md),
+with each operation's reviewed replay safety and output fields.
+
+| Case | Server 0.10.0 path | What the test server sends |
+| --- | --- | --- |
+| `missing-point`, `collection-failure`, `second-write-failure` | SA ran the MP and returned a failure code | `FailedPrecondition`, `MpFailure`, `mp-command-failed`, `Completed`, recovery `None`, `DoNotReplay`; MP state `Failed` with code 3, each output `NotAttempted` |
+| `unknown` (point read), `write-unknown` (point write) | The worker exited during the MP, so the reply was lost | `Unavailable`, `WorkerFailure`, `worker-exited-during-execution`, `StartedOutcomeUnknown`, `WorkerReplacement`; `MayReplay` for the safe read, `ReconcileBeforeReplay` for the unsafe write |
+| `deadline` (raw gRPC) | The caller's deadline elapses | No reply within the example's 10-second deadline. As with Server 0.10.0, the caller gets `DeadlineExceeded` without typed detail |
+| `missing-output`; `mp-result-failure` and `write-result-failure` (raw gRPC) | None | An `OK` result with an absent output, or with code 1 or 3 reported as `Succeeded`. Server 0.10.0 sends a typed `DataLoss`/`OutputRetrievalFailure` or `FailedPrecondition`/`MpFailure` error instead. These cases test the result checks in the clients and the raw example |
+
+Code 3 is the MP failure code SA returned in the server's released licensed probe
+records; the server reports whichever code SA returns. Some behavior is not
+modelled. After a simulated worker failure the test server keeps its SDK state,
+whereas Server 0.10.0 also retires the worker generation until an explicit
+recovery request; the tutorials stop at the failure, so no case reads that state.
+The test server's other rejections (a call before readiness, an unexpected
+request, a repeated point write) are test assertions without a typed error, and
+no case expects them. There is no policy-denial case.
+
+For an operation failure, the .NET and Python clients print the operation,
+diagnostic code and gRPC status. The TypeScript client also prints the kind,
+execution disposition, recovery guidance, replay guidance, replay safety and MP
+details. The harness checks every one of those. The raw gRPC example does not
+decode the error trailer, so its check is the gRPC status and detail. For the
+other failing cases the harness checks the error type and message, which for
+the clients includes the diagnostic code. A
+generic exception, another error type or another diagnostic code fails the case
+in every language; another kind, disposition or guidance fails it in TypeScript.
+The `unknown` read carries `MayReplay`, and every program still stops without
+repeating it.
 
 ### Published packages and the protocol archive
 
