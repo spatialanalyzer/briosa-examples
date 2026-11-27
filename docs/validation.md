@@ -41,24 +41,23 @@ This evidence covers the tutorial rewrite in issue #7; the earlier workbench's
 report and bootstrap checks are retained in Git history rather than presented
 as checks of these simpler programs.
 
-## Contract major 3 release
+## Server 0.10.1 and supported clients
 
 These tutorials use the `0.5.0` .NET, Python, and JavaScript clients for
-SA 2026.1.0529.7 and the Server `0.10.1` protocol. They require behavioral
-compatibility major 3. The direct gRPC example verifies that contract before MP
-work; the language clients perform their own server selection and compatibility
-checks.
+SA 2026.1.0529.7 and the Server `0.10.1` protocol. The direct gRPC example
+checks the server's target, compatibility and readiness before any MP call. The
+language clients select a compatible installation and verify the running server.
 
-In the `wrong-target` and `wrong-contract` cases the test server reports SA target
-2024.1.0508.5 or contract major 2. The raw gRPC example rejects that server
-itself. For the language clients the case is an installation/runtime mismatch:
-the installation manifest the harness writes beside the test server says
-2026.1.0529.7 and major 3. Each client starts that test server, compares the
-identity it reports with the manifest, and stops before it starts the SDK or
-calls an MP. It reports `server-installation-target-mismatch` or
-`server-installation-contract-mismatch` (.NET), or
-`server-installation-identity-mismatch` (Python and TypeScript). No server
-rejects anything in these cases.
+In the `wrong-target` case, the test server reports SA 2024.1.0508.5. In
+`wrong-contract`, it reports an incompatible value in its discovery response.
+The raw gRPC example rejects either response. For the language clients, the
+installation manifest the harness writes beside the test server advertises a
+compatible Server 0.10.0 installation for SA 2026.1.0529.7. Each client starts
+that test server, compares the identity it reports with the manifest, and stops
+before it starts the SDK or calls an MP. It reports
+`server-installation-target-mismatch` or `server-installation-contract-mismatch`
+(.NET), or `server-installation-identity-mismatch` (Python and TypeScript). No
+server rejects anything in these cases.
 
 The test server reports the `standard` admission profile with a capability list
 that is a subset of a real server's: only the five operations the tutorials call,
@@ -75,12 +74,14 @@ from its [outcome mapper](https://github.com/spatialanalyzer/briosa/blob/v0.10.0
 and the [outcome contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/docs/architecture/execution-outcomes-and-recovery.md),
 with each operation's reviewed replay safety and output fields.
 
-The test server reports Server 0.10.0's identity. Server 0.10.1 sends the same
-shapes on these paths: its
+The test server reports version 0.10.0 and a synthetic source revision. The
+mismatch cases also alter the reported SA target or compatibility metadata.
+Server 0.10.1 sends the same shapes on these paths: its
 [outcome mapper](https://github.com/spatialanalyzer/briosa/blob/v0.10.1/targets/2026.1.0529.7/src/Briosa.Server/Services/Outcomes/GrpcOperationOutcomeMapper.cs)
 adds a policy-denial detail only to a policy-denied failure, which no case
-simulates. The fields the 0.10.1 protocol adds are optional or default to
-unspecified, and the test server leaves them unset, as Server 0.10.0 does.
+simulates. The test server leaves the new message fields on
+`GetServerInfoResponse`, `OperationCapability` and `OperationError` unset. It
+also omits the configured SA interaction mode, which decodes as `UNSPECIFIED`.
 
 | Case | Server 0.10.0 path | What the test server sends |
 | --- | --- | --- |
@@ -140,9 +141,9 @@ tutorials pin the 0.5.0 packages: NuGet `Briosa.2026.1.0529.7`, npm
 `briosa-2026-1-0529-7`. `protocol/protocol.lock.json` pins the Server 0.10.1
 protocol archive. `eng/Import-Protocol.ps1` first refuses an `artifacts/` that is
 a link. Then, unless `artifacts/` already holds the archive, it downloads it from
-the GitHub release. Before anything is built, it
-checks the archive's SHA-256, the manifest's version, source revision, SA target
-and contract major 3, and the SHA-256 of every file the manifest lists. It
+the GitHub release. Before building, the script checks the archive's SHA-256,
+validates the manifest's version, source revision, SA target and compatibility
+metadata, and verifies every file hash in the manifest. It
 empties `artifacts/protocol-package` and `artifacts/protocol` before it extracts
 and copies, and then checks that `artifacts/protocol` holds exactly the
 manifest's proto files, so no file from an earlier import remains. It clears only
@@ -182,9 +183,9 @@ three packages match the registry files and SHA-256 values that
 `compatibility/retained-clients.json`.
 
 On 2026-11-21 (UTC), `eng/Test.ps1` passed all **51 scenarios** with the
-published packages and the 0.10.0 archive. The `partial-success` case, new with
-contract major 3, answers the distance read with MP code 4: the clients return
-it as a success, and the raw gRPC example reports it and continues. All three C#
+published packages and the 0.10.0 archive. The `partial-success` case returns
+MP code 4 from the distance read. The language clients treat it as success, and
+the raw gRPC example reports the code and continues. All three C#
 builds and the TypeScript build completed without warnings or errors. This is
 portable fake-server evidence; licensed execution has not been recorded for
 these pins. After the review follow-up (the clean protocol import and its
@@ -217,7 +218,8 @@ The 0.10.1 archive lists the same 31 files. Four differ from 0.10.0:
 `proto/briosa/discovery.proto`, `proto/briosa/operation_outcomes.proto`, the
 descriptor set (now
 `6f0f5a430d6bb5583982a41f16035b4cce4446dfcb498b36bf0069f3700b4a04`) and
-`compatibility/contract.json`, which keeps major 3 and moves from 3.0 to 3.1.
+`compatibility/contract.json`. Server 0.10.1 continues to support clients 0.5.0
+and 0.5.1 for the matching SA target.
 The proto changes only add messages, enums and fields: lifecycle bounds and the
 configured SA interaction mode in `GetServerInfoResponse`, request options and a
 policy-denial detail in `OperationCapability`, and a policy-denial detail in

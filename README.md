@@ -23,8 +23,14 @@ Choose your language. Each example is a single short program that:
 [Prepare SpatialAnalyzer](docs/setup.md), then follow one tutorial.
 These examples use SA **2026.1.0529.7**, published client **0.5.0** packages,
 and the Server **0.10.1** protocol. Install the matching Briosa server with the
-[Briosa Installer](https://briosa.dev/docs/releases). The language clients find
-a compatible installation automatically.
+[Briosa Installer](https://briosa.dev/docs/releases).
+
+The language clients select a compatible installation automatically. The
+TypeScript tutorial pins client 0.5.0. On a real server, startup reads the full
+capability list, and a later call can occasionally time out before the tutorial
+creates its first point. For TypeScript applications, the Server 0.10.1 release
+recommends [JavaScript client 0.5.2](https://github.com/spatialanalyzer/briosa-js/releases/tag/v0.5.2),
+which increases the HTTP/2 receive window.
 
 Start with an empty SA job. Each example creates P1 at (0, 0, 0) and P2 at
 (3, 4, 0) in its own demo collection; no manual point setup is needed.
