@@ -41,24 +41,23 @@ This evidence covers the tutorial rewrite in issue #7; the earlier workbench's
 report and bootstrap checks are retained in Git history rather than presented
 as checks of these simpler programs.
 
-## Contract major 3 release
+## Server 0.10.1 and supported clients
 
 These tutorials use the `0.5.0` .NET, Python, and JavaScript clients for
-SA 2026.1.0529.7 and the Server `0.10.0` protocol. They require behavioral
-compatibility major 3. The direct gRPC example verifies that contract before MP
-work; the language clients perform their own server selection and compatibility
-checks.
+SA 2026.1.0529.7 and the Server `0.10.1` protocol. The direct gRPC example
+checks the server's target, compatibility and readiness before any MP call. The
+language clients select a compatible installation and verify the running server.
 
-In the `wrong-target` and `wrong-contract` cases the test server reports SA target
-2024.1.0508.5 or contract major 2. The raw gRPC example rejects that server
-itself. For the language clients the case is an installation/runtime mismatch:
-the installation manifest the harness writes beside the test server says
-2026.1.0529.7 and major 3. Each client starts that test server, compares the
-identity it reports with the manifest, and stops before it starts the SDK or
-calls an MP. It reports `server-installation-target-mismatch` or
-`server-installation-contract-mismatch` (.NET), or
-`server-installation-identity-mismatch` (Python and TypeScript). No server
-rejects anything in these cases.
+In the `wrong-target` case, the test server reports SA 2024.1.0508.5. In
+`wrong-contract`, it reports an incompatible value in its discovery response.
+The raw gRPC example rejects either response. For the language clients, the
+installation manifest the harness writes beside the test server advertises a
+compatible Server 0.10.0 installation for SA 2026.1.0529.7. Each client starts
+that test server, compares the identity it reports with the manifest, and stops
+before it starts the SDK or calls an MP. It reports
+`server-installation-target-mismatch` or `server-installation-contract-mismatch`
+(.NET), or `server-installation-identity-mismatch` (Python and TypeScript). No
+server rejects anything in these cases.
 
 The test server reports the `standard` admission profile with a capability list
 that is a subset of a real server's: only the five operations the tutorials call,
@@ -74,6 +73,15 @@ For each operation failure, the test server sends the gRPC status and typed
 from its [outcome mapper](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/targets/2026.1.0529.7/src/Briosa.Server/Services/Outcomes/GrpcOperationOutcomeMapper.cs)
 and the [outcome contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/docs/architecture/execution-outcomes-and-recovery.md),
 with each operation's reviewed replay safety and output fields.
+
+The test server reports version 0.10.0 and a synthetic source revision. The
+mismatch cases also alter the reported SA target or compatibility metadata.
+Server 0.10.1 sends the same shapes on these paths: its
+[outcome mapper](https://github.com/spatialanalyzer/briosa/blob/v0.10.1/targets/2026.1.0529.7/src/Briosa.Server/Services/Outcomes/GrpcOperationOutcomeMapper.cs)
+adds a policy-denial detail only to a policy-denied failure, which no case
+simulates. The test server leaves the new message fields on
+`GetServerInfoResponse`, `OperationCapability` and `OperationError` unset. It
+also omits the configured SA interaction mode, which decodes as `UNSPECIFIED`.
 
 | Case | Server 0.10.0 path | What the test server sends |
 | --- | --- | --- |
@@ -130,12 +138,12 @@ repeating it.
 Everything the tutorials consume is a published release file. The language
 tutorials pin the 0.5.0 packages: NuGet `Briosa.2026.1.0529.7`, npm
 `@spatialanalyzer/briosa-2026.1.0529.7` (installed as `briosa`), and PyPI
-`briosa-2026-1-0529-7`. `protocol/protocol.lock.json` pins the Server 0.10.0
+`briosa-2026-1-0529-7`. `protocol/protocol.lock.json` pins the Server 0.10.1
 protocol archive. `eng/Import-Protocol.ps1` first refuses an `artifacts/` that is
 a link. Then, unless `artifacts/` already holds the archive, it downloads it from
-the GitHub release. Before anything is built, it
-checks the archive's SHA-256, the manifest's version, source revision, SA target
-and contract major 3, and the SHA-256 of every file the manifest lists. It
+the GitHub release. Before building, the script checks the archive's SHA-256,
+validates the manifest's version, source revision, SA target and compatibility
+metadata, and verifies every file hash in the manifest. It
 empties `artifacts/protocol-package` and `artifacts/protocol` before it extracts
 and copies, and then checks that `artifacts/protocol` holds exactly the
 manifest's proto files, so no file from an earlier import remains. It clears only
@@ -154,7 +162,7 @@ clearing either folder and the archive is still there.
 
 | Input | Built from | Download |
 | --- | --- | --- |
-| Protocol archive 0.10.0 | briosa `ee16784d9fdaf67ce7d7bb0b68609a98fe403e1c` (tag `v0.10.0`) | [GitHub release](https://github.com/spatialanalyzer/briosa/releases/download/v0.10.0/briosa-protocol-0.10.0-sa-2026.1.0529.7.zip) |
+| Protocol archive 0.10.1 | briosa `d947d95ca6e7ff1ecece94cdcb218724f151a807` (tag `v0.10.1`) | [GitHub release](https://github.com/spatialanalyzer/briosa/releases/download/v0.10.1/briosa-protocol-0.10.1-sa-2026.1.0529.7.zip) |
 | .NET client 0.5.0 | briosa-dotnet `bc72244454c436441cabbaad1ae4e8ca519a5a9e` | [NuGet](https://api.nuget.org/v3-flatcontainer/briosa.2026.1.0529.7/0.5.0/briosa.2026.1.0529.7.0.5.0.nupkg) |
 | JavaScript client 0.5.0 | briosa-js `b94fce3f6e95b3e15f99f9d65f1710cc8c8d3119` | [npm](https://registry.npmjs.org/@spatialanalyzer/briosa-2026.1.0529.7/-/briosa-2026.1.0529.7-0.5.0.tgz) |
 | Python client 0.5.0 | briosa-py `cae6e535ebfd89fd6c4ba280c741ec5f7fd04a0d` | [PyPI](https://files.pythonhosted.org/packages/07/97/fbe56e4590c2af58291c8732cd3c4aca07de278a08c3726b75dc0b0f975e/briosa_2026_1_0529_7-0.5.0-py3-none-any.whl) |
@@ -162,21 +170,22 @@ clearing either folder and the archive is still there.
 The SHA-256 values of those files:
 
 ```text
-8dfb579434997ee4d6b07500810575d16b32499ccff57b4b4c1f278afa2c16f8  briosa-protocol-0.10.0-sa-2026.1.0529.7.zip
+1a58ff916a3a32014c34cf3b399bf6a4f9b8f988b6d3d52e134b1debdb66b21a  briosa-protocol-0.10.1-sa-2026.1.0529.7.zip
 adc0de5a274034d7bf393502095ed620a49e0e1a467b1263a86d192f47a38d29  briosa.2026.1.0529.7.0.5.0.nupkg
 7d0583ed9b6ec489d3f93af74df877a01856138913952e7e0ca098a3344105cd  briosa-2026.1.0529.7-0.5.0.tgz
 f2ecb2aaaf4d0b5de24910986f9d778453c982f5a82ae2031213b0d62edc6064  briosa_2026_1_0529_7-0.5.0-py3-none-any.whl
 ```
 
-The archive's SHA-256 is the digest GitHub lists for that release asset. The
+The archive's SHA-256 is the digest GitHub lists for that release asset and the
+value in the release's `.zip.sha256` file. The
 three packages match the registry files and SHA-256 values that
 [briosa#381](https://github.com/spatialanalyzer/briosa/pull/381) pins in
 `compatibility/retained-clients.json`.
 
 On 2026-11-21 (UTC), `eng/Test.ps1` passed all **51 scenarios** with the
-published packages and the release archive. The `partial-success` case, new with
-contract major 3, answers the distance read with MP code 4: the clients return
-it as a success, and the raw gRPC example reports it and continues. All three C#
+published packages and the 0.10.0 archive. The `partial-success` case returns
+MP code 4 from the distance read. The language clients treat it as success, and
+the raw gRPC example reports the code and continues. All three C#
 builds and the TypeScript build completed without warnings or errors. This is
 portable fake-server evidence; licensed execution has not been recorded for
 these pins. After the review follow-up (the clean protocol import and its
@@ -188,16 +197,38 @@ checks, and the check that no MP is attempted in the refused cases), another
 offline local run on 2026-11-21 (UTC) passed the import self-checks and all 51
 scenarios, with no build warnings or errors.
 
+On 2026-11-27 (UTC), after the protocol pin moved to the Server 0.10.1 release
+archive, an offline local run of `eng/Test.ps1` passed the import self-checks
+and all 51 scenarios. All three C# builds and the TypeScript build completed
+without warnings or errors. The run used locally cached copies of the pinned
+packages and a hash-verified copy of the release asset, not the download or the
+registries. It is portable fake-server evidence; licensed execution has not been
+recorded for these pins.
+
 Earlier runs against source builds of the client pull requests and against the
 frozen protocol checkpoint `0.10.0-dev.1`
 ([briosa#363](https://github.com/spatialanalyzer/briosa/pull/363)) are recorded
 in [briosa-examples#16](https://github.com/spatialanalyzer/briosa-examples/pull/16).
-Each of the 31 files the release manifest lists has the same SHA-256 as in that
-checkpoint, including the descriptor set
+Each of the 31 files the 0.10.0 release manifest lists has the same SHA-256 as in
+that checkpoint, including the descriptor set
 (`aa938e86fc62627d58994953398da3b7dc6a202f5f3c90e778bbddccda0261f8`). Only the
 manifest's name, version and source revision differ.
 
-The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.0/docs/architecture/client-library-behavioral-contract.md)
+The 0.10.1 archive lists the same 31 files. Four differ from 0.10.0:
+`proto/briosa/discovery.proto`, `proto/briosa/operation_outcomes.proto`, the
+descriptor set (now
+`6f0f5a430d6bb5583982a41f16035b4cce4446dfcb498b36bf0069f3700b4a04`) and
+`compatibility/contract.json`. Server 0.10.1 continues to support clients 0.5.0
+and 0.5.1 for the matching SA target.
+The proto changes only add messages, enums and fields: lifecycle bounds and the
+configured SA interaction mode in `GetServerInfoResponse`, request options and a
+policy-denial detail in `OperationCapability`, and a policy-denial detail in
+`OperationError`. The 0.5.0 clients ignore them. Of the four programs, only the
+raw gRPC example compiles the imported protocol, as does the test server; both
+build against 0.10.1 without a source change. The language clients carry their
+own generated code.
+
+The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.1/docs/architecture/client-library-behavioral-contract.md)
 defines overload and lifecycle behavior. Tutorial calls remain sequential and
 stop on failure; they do not automatically retry an uncertain write.
 
