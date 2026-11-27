@@ -22,7 +22,7 @@ Choose your language. Each example is a single short program that:
 
 [Prepare SpatialAnalyzer](docs/setup.md), then follow one tutorial.
 These examples use SA **2026.1.0529.7**, published client **0.5.0** packages,
-and the Server **0.10.0** protocol. Install the matching Briosa server with the
+and the Server **0.10.1** protocol. Install the matching Briosa server with the
 [Briosa Installer](https://briosa.dev/docs/releases). The language clients find
 a compatible installation automatically.
 
