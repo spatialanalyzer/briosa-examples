@@ -1,8 +1,8 @@
 {
-  "version": "0.10.1",
+  "version": "0.10.2",
   "sa_target": "2026.1.0529.7",
-  "source_revision": "d947d95ca6e7ff1ecece94cdcb218724f151a807",
-  "file_name": "briosa-protocol-0.10.1-sa-2026.1.0529.7.zip",
-  "sha256": "1a58ff916a3a32014c34cf3b399bf6a4f9b8f988b6d3d52e134b1debdb66b21a",
-  "url": "https://github.com/spatialanalyzer/briosa/releases/download/v0.10.1/briosa-protocol-0.10.1-sa-2026.1.0529.7.zip"
+  "source_revision": "5ca27a84ed7f80e7dd12cc0e6c0238e71090421e",
+  "file_name": "briosa-protocol-0.10.2-sa-2026.1.0529.7.zip",
+  "sha256": "b60f553ef4b94e6e7625abbc7b971c725269664898f272e92dc5e172cb98851f",
+  "url": "https://github.com/spatialanalyzer/briosa/releases/download/v0.10.2/briosa-protocol-0.10.2-sa-2026.1.0529.7.zip"
 }
