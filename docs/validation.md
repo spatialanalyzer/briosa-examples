@@ -247,11 +247,13 @@ descriptor set (now
 `compatibility/contract.json` and the archive's `README.md`. Server 0.10.2
 works with the published 0.5.0 and 0.5.1 clients for .NET, JavaScript/TypeScript
 and Python, and with JavaScript/TypeScript client 0.5.2, for the matching SA
-target. The proto changes add one message, one enum, two enum values and four
-fields, and update comments; nothing is removed or renumbered. The fields are
-`mp_step` in `OperationCapability`, a request-validation detail in
+target. The proto changes add one message with two fields
+(`RequestValidationDetails`) and one enum with eight values
+(`RequestFieldConstraint`). To existing types they add two enum values and four
+fields, and they update comments; nothing is removed or renumbered. The four
+fields are `mp_step` in `OperationCapability`, a request-validation detail in
 `OperationError`, and the caller's profile and denied flag in the policy-denial
-detail. The 0.5.0 clients ignore them. The raw gRPC example and the test server
+detail. The 0.5.0 clients ignore all of these. The raw gRPC example and the test server
 build against 0.10.2 without a source change.
 
 The [shared behavioral contract](https://github.com/spatialanalyzer/briosa/blob/v0.10.2/docs/architecture/client-library-behavioral-contract.md)
